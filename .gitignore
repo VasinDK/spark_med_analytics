@@ -1,0 +1,15 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.env
+0_patient_visits_1m.json
+patient_visits_1m.json
+todo.txt
+
+
+# Virtual environments
+.venv
