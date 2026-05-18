@@ -6,8 +6,11 @@ dist/
 wheels/
 *.egg-info
 .env
-0_patient_visits_1m.json
+10_patient_visits_1m.json
 patient_visits_1m.json
+spark/hello_world.py
+spark/iceberg_job.py
+spark/iceberg_job_look.py
 todo.txt
 
 
