@@ -1,9 +1,12 @@
 import logging
+import time
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType, FloatType, ArrayType
 from pyspark.sql.functions import col, to_date, expr
 
 logging.getLogger("py4j").setLevel(logging.ERROR)
+
+start_time = time.perf_counter()
 
 spark = SparkSession.builder \
     .appName("BronzeToSilverIcebergJob") \
@@ -128,3 +131,7 @@ spark.sql(f"""
 
 print("=== ETL ПРОЦЕСС СВЯЗАННЫХ ТАБЛИЦ ЗАВЕРШЕН УСПЕШНО ===")
 spark.stop()
+
+end_time = time.perf_counter()
+execute_time = end_time - start_time
+print(f"=== время выполнения {execute_time // 60} минут и {execute_time % 60} секунд ===")
