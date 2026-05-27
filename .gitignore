@@ -6,11 +6,14 @@ dist/
 wheels/
 *.egg-info
 .env
-raw/10_patient_visits_1m.json
-raw/patient_visits_1m.json
+data/
+# Делаем исключение для легких справочников
+!data/departments.csv
+!data/professions.csv
 spark_ignore/
 todo.txt
 
 
 # Virtual environments
 .venv
+.vscode

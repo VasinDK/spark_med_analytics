@@ -110,4 +110,4 @@ def generate_medical_dataset(output_filepath: str, num_records: int = 10):
 
 if __name__ == "__main__":
     # Запуск генерации 1 млн строк в текущую директорию
-    generate_medical_dataset(output_filepath="patient_visits_1m.json", num_records=10)
+    generate_medical_dataset(output_filepath="data/patient_visits_1m.json", num_records=10)
