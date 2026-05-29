@@ -7,10 +7,10 @@ wheels/
 *.egg-info
 .env
 data/
+src/sparkmedanalytics.egg-info
 # Делаем исключение для легких справочников
 !data/departments.csv
 !data/professions.csv
-spark_ignore/
 todo.txt
 
 
