@@ -1,20 +1,24 @@
-import time
+import time, os
+import src.config as config
 from src.utils import get_spark_session
 from src.schemas import ref_book_schema
 from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType, FloatType, DateType, ArrayType
 from pyspark.sql.functions import col, to_date
 
+
 def run_etl():
-    spark = get_spark_session(app_name = spark.conf.get("spark.executorEnv.NAME_REF_JOB"))
+    app_name = config.SESSION_REFERENCES
+    print(f"=== app_name: {app_name}")
+    spark = get_spark_session(app_name = app_name)
 
     df_raw_departments = spark.read.schema(ref_book_schema) \
         .option("header", True) \
         .option("delimiter", ";") \
-        .csv(spark.conf.get("spark.executorEnv.S3_DEPARTMENTS_CSV"))
+        .csv(f"s3a://{config.BRONZE_DEPARTMENTS_CSV}")
     df_raw_professions = spark.read.schema(ref_book_schema) \
         .option("header", True) \
         .option("delimiter", ";") \
-        .csv(spark.conf.get("spark.executorEnv.S3_PROFESSIONS_CSV"))
+        .csv(f"s3a://{config.BRONZE_PROFESSIONS_CSV}")
 
     df_raw_departments.createOrReplaceTempView("temp_df_departments")
     df_raw_professions.createOrReplaceTempView("temp_df_professions")

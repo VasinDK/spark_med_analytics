@@ -5,50 +5,47 @@
 -include .env
 export
 
-# SPARK_ENV_PROPS_SPACES = \
-# spark.executorEnv.SPARK_ENV=$(SPARK_ENV),\
-# spark.executorEnv.DB_CATALOG=$(DB_CATALOG),\
-# spark.executorEnv.DB_SCHEMA=$(DB_SCHEMA),\
-# spark.executorEnv.S3_STORAGE=$(S3_STORAGE),\
-# spark.executorEnv.S3_BRONZE_PATH=$(S3_BRONZE_PATH),\
-# spark.executorEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV),\
-# spark.executorEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV),\
-# spark.executorEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE),\
-# spark.executorEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH),\
-# spark.executorEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS),\
-# spark.executorEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS),\
-# spark.executorEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS),\
-# spark.executorEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS),\
-# spark.executorEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC),\
-# spark.executorEnv.DQ_MIN_AGE=$(DQ_MIN_AGE),\
-# spark.executorEnv.DQ_MAX_AGE=$(DQ_MAX_AGE),\
-# spark.executorEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP),\
-# spark.executorEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP),\
-# spark.executorEnv.NAME_REF_JOB=$(NAME_REF_JOB),\
-# spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV),\
-# spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG),\
-# spark.yarn.appMasterEnv.DB_SCHEMA=$(DB_SCHEMA),\
-# spark.yarn.appMasterEnv.S3_STORAGE=$(S3_STORAGE),\
-# spark.yarn.appMasterEnv.S3_BRONZE_PATH=$(S3_BRONZE_PATH),\
-# spark.yarn.appMasterEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV),\
-# spark.yarn.appMasterEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV),\
-# spark.yarn.appMasterEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE),\
-# spark.yarn.appMasterEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH),\
-# spark.yarn.appMasterEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS),\
-# spark.yarn.appMasterEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS),\
-# spark.yarn.appMasterEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS),\
-# spark.yarn.appMasterEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS),\
-# spark.yarn.appMasterEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC),\
-# spark.yarn.appMasterEnv.DQ_MIN_AGE=$(DQ_MIN_AGE),\
-# spark.yarn.appMasterEnv.DQ_MAX_AGE=$(DQ_MAX_AGE),\
-# spark.yarn.appMasterEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP),\
-# spark.yarn.appMasterEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP),\
-# spark.yarn.appMasterEnv.NAME_REF_JOB=$(NAME_REF_JOB)
-
-# # Подготовка для отправки в спарк (не ошибка)
-# empty :=
-# space := $(empty) $(empty)
-# SPARK_ENV_PROPS = $(subst $(space),,$(SPARK_ENV_PROPS_SPACES))
+SPARK_ENV_PROPS = \
+    --properties spark.executorEnv.SPARK_ENV=$(SPARK_ENV) \
+    --properties spark.executorEnv.DB_CATALOG=$(DB_CATALOG) \
+    --properties spark.executorEnv.DB_SCHEMA=$(DB_SCHEMA) \
+    --properties spark.executorEnv.S3_STORAGE=$(S3_STORAGE) \
+    --properties spark.executorEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
+    --properties spark.executorEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
+    --properties spark.executorEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
+    --properties spark.executorEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
+    --properties spark.executorEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
+    --properties spark.executorEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
+    --properties spark.executorEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
+    --properties spark.executorEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
+    --properties spark.executorEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
+    --properties spark.executorEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
+    --properties spark.executorEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
+    --properties spark.executorEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
+    --properties spark.executorEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
+    --properties spark.executorEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
+    --properties spark.executorEnv.SESSION_SILVER=$(SESSION_SILVER) \
+    --properties spark.executorEnv.SESSION_GOLD=$(SESSION_GOLD) \
+    --properties spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV) \
+    --properties spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG) \
+    --properties spark.yarn.appMasterEnv.DB_SCHEMA=$(DB_SCHEMA) \
+    --properties spark.yarn.appMasterEnv.S3_STORAGE=$(S3_STORAGE) \
+    --properties spark.yarn.appMasterEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
+    --properties spark.yarn.appMasterEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
+    --properties spark.yarn.appMasterEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
+    --properties spark.yarn.appMasterEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
+    --properties spark.yarn.appMasterEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
+    --properties spark.yarn.appMasterEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
+    --properties spark.yarn.appMasterEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
+    --properties spark.yarn.appMasterEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
+    --properties spark.yarn.appMasterEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
+    --properties spark.yarn.appMasterEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
+    --properties spark.yarn.appMasterEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
+    --properties spark.yarn.appMasterEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
+    --properties spark.yarn.appMasterEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
+    --properties spark.yarn.appMasterEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
+    --properties spark.yarn.appMasterEnv.SESSION_SILVER=$(SESSION_SILVER) \
+    --properties spark.yarn.appMasterEnv.SESSION_GOLD=$(SESSION_GOLD) \
 
 .PHONY: sync generate test lint build clean help
 		refs-dev silver-dev gold-dev 
@@ -83,7 +80,7 @@ lint:
 	uv run black src/ jobs/ scripts/ tests/ --check
 
 # Сборка стабильного .whl пакета для отправки на кластер Data Proc
-build: clean
+build:
 	uv build --wheel
 
 # Очистка репозитория от временного мусора, кэша тестов и логов
@@ -92,19 +89,32 @@ clean:
 	find . -name "__pycache__" -exec rm -rf {} +
 	find . -name "*.pyc" -exec rm -f {} +
 
-# Обновление справочников и отправка статических файлов в облако
+# Скачивание зависимостей
+deps:
+	uv pip compile pyproject.toml -o requirements.txt && \
+	grep -E -v "pyspark|py4j|# " requirements.txt > requirements-cloud.txt && \
+	rm -rf dist/dependencies dist/unpacked_libs && \
+	mkdir -p dist/dependencies dist/unpacked_libs && \
+	uv run pip download -r requirements-cloud.txt -d dist/dependencies/ && \
+	for whl in dist/dependencies/*.whl; do unzip -q $$whl -d dist/unpacked_libs/; done && \
+	(cd dist/unpacked_libs && zip -q -r ../dependencies.zip .)
+
+# Обновление справочников и зависимостей
 refs-dev: build
-# 	yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/patient_visits_1m.json &&
-	yc storage s3 cp data/departments.csv s3://$(S3_BRONZE_PATH)/departments.csv && \
-	yc storage s3 cp data/professions.csv s3://$(S3_BRONZE_PATH)/professions.csv && \
+#  deps
+# 	yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/patient_visits_1m.json && \
+# 	yc storage s3 cp data/departments.csv s3://$(S3_DEPARTMENTS_CSV) && \
+# 	yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV) && \
+#	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
+
 	yc storage s3 cp jobs/load_references.py s3://$(CODE_BUCKET)/load_references.py && \
 	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE) && \
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
-		--name $(NAME_REF_JOB) \
+		--name $(SESSION_REFERENCES) \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/load_references.py \
-		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE) \
-		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE) \
+		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
+		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
 		$(BASE_PROPERTIES) $(SPARK_ENV_PROPS) \
 		$(REPOSITORIES) $(PACKAGES) \
 		--async=false
@@ -115,7 +125,7 @@ silver-dev: test lint build
 	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE) &&
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
-		--name silver-dev \
+		--name $(SESSION_SILVER) \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/bronze_to_silver.py \
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE) \
 		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE) \
@@ -125,5 +135,3 @@ silver-dev: test lint build
 	
 gold-dev:
 	echo $(SPARK_ENV_PROPS)
-	echo " "
-	echo $(spark.yarn.appMasterEnv.NAME_REF_JOB)
