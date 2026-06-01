@@ -5,47 +5,57 @@
 -include .env
 export
 
-SPARK_ENV_PROPS = \
-    --properties spark.executorEnv.SPARK_ENV=$(SPARK_ENV) \
-    --properties spark.executorEnv.DB_CATALOG=$(DB_CATALOG) \
-    --properties spark.executorEnv.DB_SCHEMA=$(DB_SCHEMA) \
-    --properties spark.executorEnv.S3_STORAGE=$(S3_STORAGE) \
-    --properties spark.executorEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
-    --properties spark.executorEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
-    --properties spark.executorEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
-    --properties spark.executorEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
-    --properties spark.executorEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
-    --properties spark.executorEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
-    --properties spark.executorEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
-    --properties spark.executorEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
-    --properties spark.executorEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
-    --properties spark.executorEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
-    --properties spark.executorEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
-    --properties spark.executorEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
-    --properties spark.executorEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
-    --properties spark.executorEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
-    --properties spark.executorEnv.SESSION_SILVER=$(SESSION_SILVER) \
-    --properties spark.executorEnv.SESSION_GOLD=$(SESSION_GOLD) \
-    --properties spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV) \
-    --properties spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG) \
-    --properties spark.yarn.appMasterEnv.DB_SCHEMA=$(DB_SCHEMA) \
-    --properties spark.yarn.appMasterEnv.S3_STORAGE=$(S3_STORAGE) \
-    --properties spark.yarn.appMasterEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
-    --properties spark.yarn.appMasterEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
-    --properties spark.yarn.appMasterEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
-    --properties spark.yarn.appMasterEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
-    --properties spark.yarn.appMasterEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
-    --properties spark.yarn.appMasterEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
-    --properties spark.yarn.appMasterEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
-    --properties spark.yarn.appMasterEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
-    --properties spark.yarn.appMasterEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
-    --properties spark.yarn.appMasterEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
-    --properties spark.yarn.appMasterEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
-    --properties spark.yarn.appMasterEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
-    --properties spark.yarn.appMasterEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
-    --properties spark.yarn.appMasterEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
-    --properties spark.yarn.appMasterEnv.SESSION_SILVER=$(SESSION_SILVER) \
-    --properties spark.yarn.appMasterEnv.SESSION_GOLD=$(SESSION_GOLD) \
+SPARK_ENV_PROPS_SPACES = spark.executorEnv.SPARK_ENV=$(SPARK_ENV),\
+spark.executorEnv.DB_CATALOG=$(DB_CATALOG),\
+spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV),\
+spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG)
+
+# Подготовка для отправки в спарк (не ошибка)
+empty :=
+space := $(empty) $(empty)
+SPARK_ENV_PROPS = $(subst $(space),,$(SPARK_ENV_PROPS_SPACES))
+
+# SPARK_ENV_PROPS = \
+#     --properties spark.executorEnv.SPARK_ENV=$(SPARK_ENV) \
+#     --properties spark.executorEnv.DB_CATALOG=$(DB_CATALOG) \
+#     --properties spark.executorEnv.DB_SCHEMA=$(DB_SCHEMA) \
+#     --properties spark.executorEnv.S3_STORAGE=$(S3_STORAGE) \
+#     --properties spark.executorEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
+#     --properties spark.executorEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
+#     --properties spark.executorEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
+#     --properties spark.executorEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
+#     --properties spark.executorEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
+#     --properties spark.executorEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
+#     --properties spark.executorEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
+#     --properties spark.executorEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
+#     --properties spark.executorEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
+#     --properties spark.executorEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
+#     --properties spark.executorEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
+#     --properties spark.executorEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
+#     --properties spark.executorEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
+#     --properties spark.executorEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
+#     --properties spark.executorEnv.SESSION_SILVER=$(SESSION_SILVER) \
+#     --properties spark.executorEnv.SESSION_GOLD=$(SESSION_GOLD) \
+#     --properties spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV) \
+#     --properties spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG) \
+#     --properties spark.yarn.appMasterEnv.DB_SCHEMA=$(DB_SCHEMA) \
+#     --properties spark.yarn.appMasterEnv.S3_STORAGE=$(S3_STORAGE) \
+#     --properties spark.yarn.appMasterEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
+#     --properties spark.yarn.appMasterEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
+#     --properties spark.yarn.appMasterEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
+#     --properties spark.yarn.appMasterEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
+#     --properties spark.yarn.appMasterEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
+#     --properties spark.yarn.appMasterEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
+#     --properties spark.yarn.appMasterEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
+#     --properties spark.yarn.appMasterEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
+#     --properties spark.yarn.appMasterEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
+#     --properties spark.yarn.appMasterEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
+#     --properties spark.yarn.appMasterEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
+#     --properties spark.yarn.appMasterEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
+#     --properties spark.yarn.appMasterEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
+#     --properties spark.yarn.appMasterEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
+#     --properties spark.yarn.appMasterEnv.SESSION_SILVER=$(SESSION_SILVER) \
+#     --properties spark.yarn.appMasterEnv.SESSION_GOLD=$(SESSION_GOLD) \
 
 .PHONY: sync generate test lint build clean help
 		refs-dev silver-dev gold-dev 
@@ -115,7 +125,7 @@ refs-dev: build
 		--main-python-file-uri s3a://$(CODE_BUCKET)/load_references.py \
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
 		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
-		$(BASE_PROPERTIES) $(SPARK_ENV_PROPS) \
+		--properties $(BASE_PROPERTIES),$(SPARK_ENV_PROPS) \
 		$(REPOSITORIES) $(PACKAGES) \
 		--async=false
 
