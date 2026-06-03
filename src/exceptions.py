@@ -1,0 +1,14 @@
+from src import constants
+
+class MedAnalyticsError(Exception):
+    pass
+
+class ConfigurationNotFoundError(MedAnalyticsError):
+    def __init__(self, message: str = None):
+        default_message = constants.CONFIGURATION_NOT_FOUND_ERROR
+        super().__init__(message or default_message)
+
+class InvalidS3PathError(MedAnalyticsError):
+    def __init__(self, s3_path: str = None):
+        message = constants.INVALID_S3_PATH_ERROR.format(s3_path)
+        super().__init__(message)

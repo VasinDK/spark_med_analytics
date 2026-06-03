@@ -1,0 +1,45 @@
+s3:
+  storage: "https://storage.yandexcloud.net"
+  bronze: &bronze_bucket "spark-medanalytics-dev-bronze"
+  silver: &silver_bucket "spark-medanalytics-dev-silver"
+  departments_csv: 
+    bucket: *bronze_bucket
+    path: "departments.csv"
+  professions_csv: 
+    bucket: *bronze_bucket
+    path: "professions.csv"
+  silver_warehouse: 
+    bucket: *silver_bucket
+    path: "warehouse/"
+  quarantine_path: 
+    bucket: *silver_bucket
+    path: "quarantine/"
+  
+db:
+  catalog: "yandex"
+  schema: "silver"
+  table: 
+    visits: "visits"
+    departments: "departments"
+    professions: "professions"
+    symptoms: "visits_symptoms_code"
+    chronic: "visits_chronic_diseases"
+
+dq_rule:
+  min_age: 0
+  max_age: 120
+  min_temp: 34.0
+  max_temp: 43.0
+
+log_level:
+  py4j: 40
+  spark_sql: "WARN"
+
+infrastructure:
+  cluster_name: "dataproc441"
+  code_bucket: "scripts-spark-med"
+  whl_file: "sparkmedanalytics-0.1.0-py3-none-any.whl"
+  dependencies: "dependencies.zip"
+
+packages: "org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:1.4.3,org.apache.iceberg:iceberg-aws-bundle:1.4.3"
+repositories: "https://maven.org"

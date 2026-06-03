@@ -1,61 +1,27 @@
 # ====================================================================================
 # MAKEFILE ДЛЯ SPARK MEDICAL ANALYTICS ETL
+
+# Предворительно должны быть установлены:
+# makefile, uv, yq
 # ====================================================================================
 
 -include .env
 export
 
-SPARK_ENV_PROPS_SPACES = spark.executorEnv.SPARK_ENV=$(SPARK_ENV),\
-spark.executorEnv.DB_CATALOG=$(DB_CATALOG),\
-spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV),\
-spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG)
+SPARK_ENV ?= dev
 
-# Подготовка для отправки в спарк (не ошибка)
-empty :=
-space := $(empty) $(empty)
-SPARK_ENV_PROPS = $(subst $(space),,$(SPARK_ENV_PROPS_SPACES))
-
-# SPARK_ENV_PROPS = \
-#     --properties spark.executorEnv.SPARK_ENV=$(SPARK_ENV) \
-#     --properties spark.executorEnv.DB_CATALOG=$(DB_CATALOG) \
-#     --properties spark.executorEnv.DB_SCHEMA=$(DB_SCHEMA) \
-#     --properties spark.executorEnv.S3_STORAGE=$(S3_STORAGE) \
-#     --properties spark.executorEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
-#     --properties spark.executorEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
-#     --properties spark.executorEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
-#     --properties spark.executorEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
-#     --properties spark.executorEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
-#     --properties spark.executorEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
-#     --properties spark.executorEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
-#     --properties spark.executorEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
-#     --properties spark.executorEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
-#     --properties spark.executorEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
-#     --properties spark.executorEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
-#     --properties spark.executorEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
-#     --properties spark.executorEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
-#     --properties spark.executorEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
-#     --properties spark.executorEnv.SESSION_SILVER=$(SESSION_SILVER) \
-#     --properties spark.executorEnv.SESSION_GOLD=$(SESSION_GOLD) \
-#     --properties spark.yarn.appMasterEnv.SPARK_ENV=$(SPARK_ENV) \
-#     --properties spark.yarn.appMasterEnv.DB_CATALOG=$(DB_CATALOG) \
-#     --properties spark.yarn.appMasterEnv.DB_SCHEMA=$(DB_SCHEMA) \
-#     --properties spark.yarn.appMasterEnv.S3_STORAGE=$(S3_STORAGE) \
-#     --properties spark.yarn.appMasterEnv.S3_DEPARTMENTS_CSV=$(S3_DEPARTMENTS_CSV) \
-#     --properties spark.yarn.appMasterEnv.S3_PROFESSIONS_CSV=$(S3_PROFESSIONS_CSV) \
-#     --properties spark.yarn.appMasterEnv.S3_SILVER_WAREHOUSE=$(S3_SILVER_WAREHOUSE) \
-#     --properties spark.yarn.appMasterEnv.S3_QUARANTINE_PATH=$(S3_QUARANTINE_PATH) \
-#     --properties spark.yarn.appMasterEnv.TABLE_NAME_VISITS=$(TABLE_NAME_VISITS) \
-#     --properties spark.yarn.appMasterEnv.TABLE_NAME_DEPARTMENTS=$(TABLE_NAME_DEPARTMENTS) \
-#     --properties spark.yarn.appMasterEnv.TABLE_NAME_PROFESSIONS=$(TABLE_NAME_PROFESSIONS) \
-#     --properties spark.yarn.appMasterEnv.TABLE_NAME_SYMPTOMS=$(TABLE_NAME_SYMPTOMS) \
-#     --properties spark.yarn.appMasterEnv.TABLE_NAME_CHRONIC=$(TABLE_NAME_CHRONIC) \
-#     --properties spark.yarn.appMasterEnv.DQ_MIN_AGE=$(DQ_MIN_AGE) \
-#     --properties spark.yarn.appMasterEnv.DQ_MAX_AGE=$(DQ_MAX_AGE) \
-#     --properties spark.yarn.appMasterEnv.DQ_MIN_TEMP=$(DQ_MIN_TEMP) \
-#     --properties spark.yarn.appMasterEnv.DQ_MAX_TEMP=$(DQ_MAX_TEMP) \
-#     --properties spark.yarn.appMasterEnv.SESSION_REFERENCES=$(SESSION_REFERENCES) \
-#     --properties spark.yarn.appMasterEnv.SESSION_SILVER=$(SESSION_SILVER) \
-#     --properties spark.yarn.appMasterEnv.SESSION_GOLD=$(SESSION_GOLD) \
+CLUSTER_NAME := $(shell uv run yq -r '.infrastructure.cluster_name' config/$(SPARK_ENV)_config.yaml)
+CODE_BUCKET  := $(shell uv run yq -r '.infrastructure.code_bucket' config/$(SPARK_ENV)_config.yaml)
+DEPENDENCIES  := $(shell uv run yq -r '.infrastructure.dependencies' config/$(SPARK_ENV)_config.yaml)
+S3_DEPARTMENTS_CSV := $(shell uv run yq -r '.s3.departments_csv | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
+S3_PROFESSIONS_CSV := $(shell uv run yq -r '.s3.professions_csv | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
+WHL_FILE := $(shell uv run yq -r '.infrastructure.whl_file' config/$(SPARK_ENV)_config.yaml)
+REPOSITORIES := $(shell uv run yq -r '.repositories' config/$(SPARK_ENV)_config.yaml)
+PACKAGES := $(shell uv run yq -r '.packages' config/$(SPARK_ENV)_config.yaml)
+DB_CATALOG := $(shell uv run yq -r '.db.catalog' config/$(SPARK_ENV)_config.yaml)
+SILVER := $(shell uv run yq -r '.s3.silver_warehouse | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
+STORAGE := $(shell uv run yq -r '.s3.storage' config/$(SPARK_ENV)_config.yaml)
+LOG_LEVEL := $(shell uv run yq -r '.log_level.spark_sql' config/$(SPARK_ENV)_config.yaml)
 
 .PHONY: sync generate test lint build clean help
 		refs-dev silver-dev gold-dev 
@@ -90,7 +56,7 @@ lint:
 	uv run black src/ jobs/ scripts/ tests/ --check
 
 # Сборка стабильного .whl пакета для отправки на кластер Data Proc
-build:
+build: 
 	uv build --wheel
 
 # Очистка репозитория от временного мусора, кэша тестов и логов
@@ -116,17 +82,28 @@ refs-dev: build
 # 	yc storage s3 cp data/departments.csv s3://$(S3_DEPARTMENTS_CSV) && \
 # 	yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV) && \
 #	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
-
+	
+	yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV) && \
+	yc storage s3 cp config/${SPARK_ENV}_config.yaml s3://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml && \
 	yc storage s3 cp jobs/load_references.py s3://$(CODE_BUCKET)/load_references.py && \
 	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE) && \
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
-		--name $(SESSION_REFERENCES) \
+		--name references \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/load_references.py \
-		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
-		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://$(CODE_BUCKET)/dependencies.zip \
-		--properties $(BASE_PROPERTIES),$(SPARK_ENV_PROPS) \
-		$(REPOSITORIES) $(PACKAGES) \
+		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
+		--properties "spark.sql.catalog.$(DB_CATALOG)=org.apache.iceberg.spark.SparkCatalog" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).type=hadoop" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).s3.endpoint=$(STORAGE)" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).s3.path-style-access=true" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
+		--properties "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
+		--properties "spark.sql.logLevel=$(LOG_LEVEL)" \
+		--repositories $(REPOSITORIES) \
+		--packages $(PACKAGES) \
+		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
 
 # Пробный запуск ETL джобы на dev s3
@@ -145,3 +122,9 @@ silver-dev: test lint build
 	
 gold-dev:
 	echo $(SPARK_ENV_PROPS)
+
+check-env:
+	@echo "Текущая среда: $(SPARK_ENV)"
+	@echo "Ищем файл: config/$(SPARK_ENV)_config.yaml"
+	@echo "Имя кластера из YAML: $(CLUSTER_NAME)"
+	
