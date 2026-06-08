@@ -2,6 +2,7 @@ import logging
 import time
 from functools import wraps
 from pyspark.sql.utils import AnalysisException
+from exceptions import * 
 from src import constants
 
 logger = logging.getLogger(__name__)
@@ -16,16 +17,22 @@ def monitor_job(func):
             return func(*args, **kwargs)
         
         except AnalysisException as e:
-            logger.error(constants.SPARK_ANALYSIS_ERROR.format(e.desc))
+            error_desc = getattr(e, "desc", str(e))
+            logger.error(constants.SPARK_ANALYSIS_ERROR.format(error_desc))
+            raise
+        except CriticalDataQualityError as e:
+            logger.error(constants.SPARK_ANALYSIS_ERROR.format(e))
+        except QuarantineWriteError as e:
+            logger.exception(constants.S3_ERROR.format(e))
             raise
         except Exception as e: 
             logger.exception(constants.CRITICAL_ERROR.format(e))
             raise
 
         finally:
-            logger.info(f"=== END FUNCTION: {func.__name__} ===")
             end_time = time.perf_counter()
             minutes, seconds = divmod(int(end_time - start_time), 60)
+            logger.info(f"=== END FUNCTION: {func.__name__} ===")
             logger.info(f"=== EXECUTION TIME {func.__name__}: {minutes} min {seconds} sec ===")
             
     return wrapper

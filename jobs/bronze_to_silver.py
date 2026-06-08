@@ -1,66 +1,17 @@
-import logging
-import time
+import sys
+from src.logging_config import setup_logging
+from src.schemas import bronze_schema
+from src.decorators import monitor_job
+from src.utils import get_spark_session, build_s3_path, validate,  add_id, add_quarantine
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType, FloatType, ArrayType
-from pyspark.sql.functions import col, to_date, md5, concat_ws
 
-def run_etl():
-    logging.getLogger("py4j").setLevel(logging.ERROR)
+TEMP_BRONZE_DATA = "temp_bronze_data"
 
-    spark = SparkSession.builder \
-        .appName("BronzeToSilverIcebergJob") \
-        .config("spark.sql.catalog.yandex", "org.apache.iceberg.spark.SparkCatalog") \
-        .config("spark.sql.catalog.yandex.type", "hadoop") \
-        .config("spark.sql.catalog.yandex.warehouse", "s3a://spark-medanalytics-dev-silver/warehouse/") \
-        .config("spark.sql.catalog.yandex.io-impl", "org.apache.iceberg.aws.s3.S3FileIO") \
-        .config("spark.sql.catalog.yandex.s3.endpoint", "https://storage.yandexcloud.net") \
-        .config("spark.sql.catalog.yandex.s3.path-style-access", "true") \
-        .config("spark.sql.catalog.yandex.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
-        .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
-        .config("spark.sql.logLevel", "WARN") \
-        .getOrCreate()
-
-    bronze_schema = StructType([
-        StructField("id", LongType(), False),
-        StructField("visit_date", StringType(), True), 
-        StructField("age", IntegerType(), True),
-        StructField("gender_id", IntegerType(), True),
-        StructField("profession_id", IntegerType(), True),
-        StructField("doctor_id", IntegerType(), True),
-        StructField("department_id", IntegerType(), True),
-        StructField("snils", StringType(), True),
-        StructField("height", IntegerType(), True),
-        StructField("weight", FloatType(), True),
-        StructField("temperature", FloatType(), True),
-        StructField("bp_systolic", IntegerType(), True),
-        StructField("bp_diastolic", IntegerType(), True),
-        StructField("disease_code", StringType(), True),
-        StructField("blood_type", StringType(), True),
-        StructField("symptoms_code", ArrayType(StringType()), True),
-        StructField("chronic_diseases", ArrayType(StringType()), True),
-        StructField("lab_hemoglobin", FloatType(), True),
-        StructField("lab_leukocytes", FloatType(), True),
-        StructField("lab_glucose", FloatType(), True),
-        StructField("lab_cholesterol", FloatType(), True)
-    ])
-
-    bronze_path = "s3a://spark-medanalytics-dev-bronze/10_patient_visits_1m.json"
-    df_raw = spark.read.schema(bronze_schema).option("multiline", "true").json(bronze_path)
-
-    df_silver = df_raw \
-        .withColumn("visit_date", to_date(col("visit_date"))) \
-        .withColumn("id", md5(concat_ws("-", col("visit_date"), col("snils"),col("disease_code"))))
-
-    df_silver.createOrReplaceTempView("temp_bronze_data")
-
-    target_table_visits                     = "yandex.silver.visits"
-    target_table_visits_symptoms_code       = "yandex.silver.visits_symptoms_code"
-    target_table_visits_chronic_diseases    = "yandex.silver.visits_chronic_diseases"
-
-    spark.sql("CREATE DATABASE IF NOT EXISTS yandex.silver")
+def create_tables(spark: SparkSession, db_schema: str, tables: dict):
+    spark.sql(f"CREATE DATABASE IF NOT EXISTS {db_schema}")
 
     spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {target_table_visits} (
+        CREATE TABLE IF NOT EXISTS {tables["visits"]} (
             id STRING, visit_date DATE, age INT, gender_id INT, profession_id INT, doctor_id INT, department_id INT,
             snils STRING, height INT, weight FLOAT, temperature FLOAT, bp_systolic INT, bp_diastolic INT,
             disease_code STRING, blood_type STRING, lab_hemoglobin FLOAT, lab_leukocytes FLOAT, lab_glucose FLOAT, lab_cholesterol FLOAT
@@ -68,20 +19,21 @@ def run_etl():
     """)
 
     spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {target_table_visits_symptoms_code}(
+        CREATE TABLE IF NOT EXISTS {tables["visits_symptoms"]}(
             visit_id STRING, symptoms_code STRING
         ) USING iceberg
     """)
 
     spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {target_table_visits_chronic_diseases}(
+        CREATE TABLE IF NOT EXISTS {tables["visits_chronic_dis"]}(
             visit_id STRING, chronic_diseases STRING
         ) USING iceberg
     """)
 
+def upsert_tables(spark: SparkSession, tables: dict):
     spark.sql(f"""
-        MERGE INTO {target_table_visits} t
-        USING temp_bronze_data td
+        MERGE INTO {tables["visits"]} t
+        USING {TEMP_BRONZE_DATA} td
         ON t.visit_date = td.visit_date AND t.snils = td.snils AND t.disease_code = td.disease_code
         WHEN MATCHED THEN
             UPDATE SET t.age = td.age, t.weight = td.weight, t.temperature = td.temperature, 
@@ -95,44 +47,61 @@ def run_etl():
     """)
 
     spark.sql(f"""
-        SELECT id AS real_visit_id, visit_date, snils, disease_code 
-        FROM {target_table_visits}
-    """).createOrReplaceTempView("v_actual_ids")
-
-    spark.sql("""
-        SELECT a.real_visit_id, b.symptoms_code, b.chronic_diseases
-        FROM temp_bronze_data b
-        JOIN v_actual_ids a 
-        ON a.visit_date = b.visit_date AND a.snils = b.snils AND a.disease_code = b.disease_code
-    """).createOrReplaceTempView("temp_prepared_child_data")
-
-    spark.sql(f"""
-        DELETE FROM {target_table_visits_symptoms_code} 
-        WHERE visit_id IN (SELECT real_visit_id FROM temp_prepared_child_data)
+        DELETE FROM {tables["visits_symptoms"]} 
+        WHERE visit_id IN (SELECT id FROM {TEMP_BRONZE_DATA})
     """)
 
     spark.sql(f"""
-        DELETE FROM {target_table_visits_chronic_diseases} 
-        WHERE visit_id IN (SELECT real_visit_id FROM temp_prepared_child_data)
+        DELETE FROM {tables["visits_chronic_dis"]} 
+        WHERE visit_id IN (SELECT id FROM {TEMP_BRONZE_DATA})
     """)
 
     spark.sql(f"""
-        INSERT INTO {target_table_visits_symptoms_code}
-        SELECT real_visit_id AS visit_id, explode(symptoms_code) AS symptoms_code 
-        FROM temp_prepared_child_data
+        INSERT INTO {tables["visits_symptoms"]}
+        SELECT id AS visit_id, explode(symptoms_code) AS symptoms_code 
+        FROM {TEMP_BRONZE_DATA}
+        WHERE symptoms_code IS NOT NULL
     """)
 
     spark.sql(f"""
-        INSERT INTO {target_table_visits_chronic_diseases}
-        SELECT real_visit_id AS visit_id, explode(chronic_diseases) AS chronic_diseases 
-        FROM temp_prepared_child_data
+        INSERT INTO {tables["visits_chronic_dis"]}
+        SELECT id AS visit_id, explode(chronic_diseases) AS chronic_diseases 
+        FROM {TEMP_BRONZE_DATA}
+        WHERE chronic_diseases IS NOT NULL
     """)
-    print("=== ETL ПРОЦЕСС СВЯЗАННЫХ ТАБЛИЦ ЗАВЕРШЕН УСПЕШНО ===")
-    spark.stop()
+    
+@monitor_job
+def run_etl_silver():
+    spark, config = get_spark_session(sys.argv)
+
+    try:
+        bronze_path = f"s3a://{build_s3_path(config["s3"]["visits_json"])}"
+
+        df_raw = (
+            spark.read.schema(bronze_schema)
+            .option("multiline", "true")
+            .json(bronze_path)
+        )
+
+        df_clean, df_quarantine, metrics = validate(spark, df_raw, config["dq_rule"])
+        add_quarantine(df_quarantine, build_s3_path(config["s3"]["quarantine_path"]))
+        df_silver = df_clean.transform(add_id)
+        df_silver.localCheckpoint(eager=True)
+        df_silver.createOrReplaceTempView(TEMP_BRONZE_DATA)
+
+        db_schema = f"{config['db']['catalog']}.{config['db']['schema']}"
+        tables = {
+            "visits": f"{db_schema}.{config['db']['table']['visits']}",
+            "visits_symptoms": f"{db_schema}.{config['db']['table']['symptoms']}",
+            "visits_chronic_dis": f"{db_schema}.{config['db']['table']['chronic']}"
+        }
+        create_tables(spark, db_schema, tables)
+        upsert_tables(spark, tables)
+
+    finally:
+        spark.stop()
+
 
 if __name__ == "__main__":
-    start_time = time.perf_counter()
-    run_etl()
-    end_time = time.perf_counter()
-    execute_time = end_time - start_time
-    print(f"=== время выполнения {execute_time // 60} минут и {execute_time % 60} секунд ===")
+    setup_logging()
+    run_etl_silver()

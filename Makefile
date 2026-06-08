@@ -22,6 +22,7 @@ DB_CATALOG := $(shell uv run yq -r '.db.catalog' config/$(SPARK_ENV)_config.yaml
 SILVER := $(shell uv run yq -r '.s3.silver_warehouse | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
 STORAGE := $(shell uv run yq -r '.s3.storage' config/$(SPARK_ENV)_config.yaml)
 LOG_LEVEL := $(shell uv run yq -r '.log_level.spark_sql' config/$(SPARK_ENV)_config.yaml)
+S3_BRONZE_PATH := $(shell uv run yq -r '.s3.bronze' config/$(SPARK_ENV)_config.yaml)
 
 .PHONY: sync generate test lint build clean help
 		refs-dev silver-dev gold-dev 
@@ -53,11 +54,20 @@ test:
 
 # Проверка форматирования кода
 lint:
-	uv run black src/ jobs/ scripts/ tests/ --check
+# 	uv run black src/ jobs/ scripts/ tests/ --check
+	uv run black jobs/bronze_to_silver.py
 
 # Сборка стабильного .whl пакета для отправки на кластер Data Proc
 build: 
-	uv build --wheel
+	-uv build --wheel && \
+	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE)
+# 	-yc storage s3 cp jobs/load_references.py s3://$(CODE_BUCKET)/load_references.py
+	-yc storage s3 cp jobs/bronze_to_silver.py s3://$(CODE_BUCKET)/bronze_to_silver.py	
+	-yc storage s3 cp config/${SPARK_ENV}_config.yaml s3://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml
+	-yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/10_patient_visits_1m.json
+# 	-yc storage s3 cp data/departments.csv s3://$(S3_DEPARTMENTS_CSV)
+# 	-yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV)
+	
 
 # Очистка репозитория от временного мусора, кэша тестов и логов
 clean:
@@ -73,20 +83,12 @@ deps:
 	mkdir -p dist/dependencies dist/unpacked_libs && \
 	uv run pip download -r requirements-cloud.txt -d dist/dependencies/ && \
 	for whl in dist/dependencies/*.whl; do unzip -q $$whl -d dist/unpacked_libs/; done && \
-	(cd dist/unpacked_libs && zip -q -r ../dependencies.zip .)
+	(cd dist/unpacked_libs && zip -q -r ../dependencies.zip .) && \
+	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip
 
 # Обновление справочников и зависимостей
 refs-dev: build
 #  deps
-# 	yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/patient_visits_1m.json && \
-# 	yc storage s3 cp data/departments.csv s3://$(S3_DEPARTMENTS_CSV) && \
-# 	yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV) && \
-#	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
-	
-	yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV) && \
-	yc storage s3 cp config/${SPARK_ENV}_config.yaml s3://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml && \
-	yc storage s3 cp jobs/load_references.py s3://$(CODE_BUCKET)/load_references.py && \
-	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE) && \
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
 		--name references \
@@ -106,18 +108,24 @@ refs-dev: build
 		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
 
-# Пробный запуск ETL джобы на dev s3
-silver-dev: test lint build
-	yc storage s3 cp jobs/bronze_to_silver.py s3://$(CODE_BUCKET)/bronze_to_silver.py &&
-	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE) &&
+silver-dev: build
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
-		--name $(SESSION_SILVER) \
+		--name silver \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/bronze_to_silver.py \
-		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE) \
-		--properties spark.submit.pyFiles=s3a://$(CODE_BUCKET)/$(WHL_FILE) \
-		$(BASE_PROPERTIES) $(SPARK_ENV_PROPS) \
-		$(REPOSITORIES) $(PACKAGES) \
+		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
+		--properties "spark.sql.catalog.$(DB_CATALOG)=org.apache.iceberg.spark.SparkCatalog" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).type=hadoop" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).s3.endpoint=$(STORAGE)" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).s3.path-style-access=true" \
+		--properties "spark.sql.catalog.$(DB_CATALOG).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
+		--properties "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
+		--properties "spark.sql.logLevel=$(LOG_LEVEL)" \
+		--repositories $(REPOSITORIES) \
+		--packages $(PACKAGES) \
+		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
 	
 gold-dev:

@@ -2,6 +2,9 @@ s3:
   storage: "https://storage.yandexcloud.net"
   bronze: &bronze_bucket "spark-medanalytics-dev-bronze"
   silver: &silver_bucket "spark-medanalytics-dev-silver"
+  visits_json: 
+    bucket: *bronze_bucket
+    path: "visits/*.csv"
   departments_csv: 
     bucket: *bronze_bucket
     path: "departments.csv"

@@ -6,3 +6,5 @@ pyspark==3.3.2
     # via sparkmedanalytics (pyproject.toml)
 python-dotenv==1.2.2
     # via sparkmedanalytics (pyproject.toml)
+pyyaml==6.0.3
+    # via sparkmedanalytics (pyproject.toml)
