@@ -4,7 +4,7 @@ s3:
   silver: &silver_bucket "spark-medanalytics-dev-silver"
   visits_json: 
     bucket: *bronze_bucket
-    path: "visits/*.csv"
+    path: "visits/"
   departments_csv: 
     bucket: *bronze_bucket
     path: "departments.csv"

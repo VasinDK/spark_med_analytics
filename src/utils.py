@@ -91,7 +91,7 @@ def validate(
     
     age_condition_expr = "NOT ({}) OR age IS NULL".format(age_filter)
     temp_condition_expr = "NOT ({}) OR temperature IS NULL".format(temp_filter)
-    
+        
     df_marked = df.withColumn(
         "errors",
         array(
@@ -99,24 +99,24 @@ def validate(
             when(expr(temp_condition_expr), constants.ERR_INVALID_TEMP)
         )
     )
-    
+
     df_marked = df_marked.withColumn("errors", expr("array_remove(errors, null)"))
     df_marked = df_marked.localCheckpoint(eager=True)
+
+    total_count = df_marked.count()
+    if total_count == 0:
+        logger.warning(constants.EMPTY_INPUT_WARNING)
+        return df_marked.drop("errors"), df_marked.drop("errors"), Metrics(spark_app_id = app_id)
 
     df_clean = df_marked.filter(size("errors") == 0).drop("errors")
     df_quarantine = df_marked.filter(size("errors") > 0)
     
-    total_count = df_marked.count()
-    if total_count == 0:
-        logger.warning(constants.EMPTY_INPUT_WARNING)
-        return df_marked.drop("errors"), df_marked, Metrics(app_id = app_id)
-        
     invalid_count = df_quarantine.count()
     valid_count = total_count - invalid_count
     error_percent = (invalid_count / total_count) * 100
     
     metrics = Metrics(
-        app_id = app_id,
+        spark_app_id = app_id,
         total_rows = total_count,
         valid_rows = valid_count,
         invalid_rows = invalid_count,
