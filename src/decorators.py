@@ -1,5 +1,6 @@
 import logging
 import time
+import yaml
 from functools import wraps
 from pyspark.sql.utils import AnalysisException
 from exceptions import * 
@@ -24,6 +25,15 @@ def monitor_job(func):
             logger.error(constants.SPARK_ANALYSIS_ERROR.format(e))
         except QuarantineWriteError as e:
             logger.exception(constants.S3_ERROR.format(e))
+            raise
+        except FileNotFoundError:
+            logger.exception(constants.FILE_NOT_FOUND.format(e))
+            raise
+        except yaml.YAMLError as e:
+            logger.exception(constants.ERROR_READING_YAML_FILE.format(e))
+            raise
+        except ColumnNotNullError as e:
+            logger.error(e)
             raise
         except Exception as e: 
             logger.exception(constants.CRITICAL_ERROR.format(e))

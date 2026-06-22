@@ -22,3 +22,13 @@ class QuarantineWriteError(MedAnalyticsError):
     def __init__(self, message: str = None):
         default_message = constants.QUARANTINE_WRITE_ERROR
         super().__init__(message or default_message)
+
+# class TableNotFoundError(MedAnalyticsError):
+#     def __init__(self, message: str = None):
+#         default_message = constants.TABLE_NOT_FOUND_ERROR
+#         super().__init__(message or default_message)
+    
+class ColumnNotNullError(MedAnalyticsError):
+    def __init__(self, message: str = None):
+        default_message = constants.COLUMN_NOT_NULL
+        super().__init__(message or default_message)

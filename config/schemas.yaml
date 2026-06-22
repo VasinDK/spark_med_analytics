@@ -1,0 +1,138 @@
+version: "1.0"
+
+databases:
+  bronze:
+    catalog: "iceberg"
+    schema: "bronze"
+    tables:
+      visits_raw:
+        description: "Raw visit data loaded from JSON source files"
+        status: "active"
+        owner: "data-source-team"
+        fields:
+          - {name: "id", type: "bigint", nullable: false}
+          - {name: "visit_date", type: "string", nullable: true}
+          - {name: "age", type: "integer", nullable: true}
+          - {name: "gender_id", type: "integer", nullable: true}
+          - {name: "profession_id", type: "integer", nullable: true}
+          - {name: "doctor_id", type: "integer", nullable: true}
+          - {name: "department_id", type: "integer", nullable: true}
+          - {name: "snils", type: "string", nullable: true}
+          - {name: "height", type: "integer", nullable: true}
+          - {name: "weight", type: "float", nullable: true}
+          - {name: "temperature", type: "float", nullable: true}
+          - {name: "bp_systolic", type: "integer", nullable: true}
+          - {name: "bp_diastolic", type: "integer", nullable: true}
+          - {name: "disease_code", type: "string", nullable: true}
+          - {name: "blood_type", type: "string", nullable: true}
+          - {name: "symptoms_code", type: "array<string>", nullable: true}
+          - {name: "chronic_diseases", type: "array<string>", nullable: true}
+          - {name: "lab_hemoglobin", type: "float", nullable: true}
+          - {name: "lab_leukocytes", type: "float", nullable: true}
+          - {name: "lab_glucose", type: "float", nullable: true}
+          - {name: "lab_cholesterol", type: "float", nullable: true}
+          - {name: "_corrupt_record", type: "string", nullable: true}
+
+  silver:
+    catalog: "iceberg"
+    schema: "silver"
+    tables:
+      visits:
+        description: "Cleaned and validated medical visits data"
+        status: "active"
+        owner: "data-core-team"
+        partition_by: ["days(visit_date)"]
+        merge_keys: ["visit_date", "snils", "disease_code"]
+        fields:
+          - {name: "id", type: "string", nullable: false}
+          - {name: "visit_date", type: "timestamp", nullable: true}
+          - {name: "age", type: "integer", nullable: true}
+          - {name: "gender_id", type: "integer", nullable: true}
+          - {name: "profession_id", type: "integer", nullable: true}
+          - {name: "doctor_id", type: "integer", nullable: true}
+          - {name: "department_id", type: "integer", nullable: true}
+          - {name: "snils", type: "string", nullable: true}
+          - {name: "height", type: "integer", nullable: true}
+          - {name: "weight", type: "float", nullable: true}
+          - {name: "bmi", type: "float", nullable: true}
+          - {name: "temperature", type: "float", nullable: true}
+          - {name: "bp_systolic", type: "integer", nullable: true}
+          - {name: "bp_diastolic", type: "integer", nullable: true}
+          - {name: "disease_code", type: "string", nullable: true}
+          - {name: "blood_type", type: "string", nullable: true}
+          - {name: "lab_hemoglobin", type: "float", nullable: true}
+          - {name: "lab_leukocytes", type: "float", nullable: true}
+          - {name: "lab_glucose", type: "float", nullable: true}
+          - {name: "lab_cholesterol", type: "float", nullable: true}
+
+      departments:
+        description: "Medical departments reference directory"
+        status: "active"
+        owner: "hr-data-team"
+        fields:
+          - {name: "id", type: "integer", nullable: false}
+          - {name: "name", type: "string", nullable: false}
+
+      professions:
+        description: "Staff and patient professions directory"
+        status: "active"
+        owner: "hr-data-team"
+        fields:
+          - {name: "id", type: "integer", nullable: false}
+          - {name: "name", type: "string", nullable: false}
+
+      visits_symptoms:
+        description: "Patient symptoms recorded during medical visits"
+        status: "active"
+        owner: "data-core-team"
+        partition_by: ["days(visit_date)"]
+        fields:
+          - {name: "visit_id", type: "string", nullable: false}
+          - {name: "symptoms_code", type: "string", nullable: false}
+          - {name: "visit_date", type: "timestamp", nullable: false}
+
+      visits_chronic:
+        description: "Chronic diseases identified or updated during medical visits"
+        status: "active"
+        owner: "data-core-team"
+        partition_by: ["days(visit_date)"]
+        fields:
+          - {name: "visit_id", type: "string", nullable: false}
+          - {name: "chronic_diseases", type: "string", nullable: false}
+          - {name: "visit_date", type: "timestamp", nullable: false}
+
+  gold:
+    catalog: "iceberg"
+    schema: "gold"
+    tables:
+      visits:
+        description: "Showcase of all visit data doctor visits"
+        status: "active"
+        owner: "data-core-team"
+        partition_by: ["days(visit_date)"]
+        # merge_keys: ["visit_date", "snils", "disease_code"]
+        fields:
+          - {name: "id", type: "string", nullable: false}
+          - {name: "visit_date", type: "timestamp", nullable: true}
+          - {name: "age", type: "integer", nullable: true}
+          - {name: "gender_id", type: "integer", nullable: true}
+          - {name: "profession_id", type: "integer", nullable: true}
+          - {name: "doctor_id", type: "integer", nullable: true}
+          - {name: "department_id", type: "integer", nullable: true}
+          - {name: "snils", type: "string", nullable: true}
+          - {name: "height", type: "integer", nullable: true}
+          - {name: "weight", type: "float", nullable: true}
+          - {name: "bmi", type: "float", nullable: true}
+          - {name: "temperature", type: "float", nullable: true}
+          - {name: "bp_systolic", type: "integer", nullable: true}
+          - {name: "bp_diastolic", type: "integer", nullable: true}
+          - {name: "disease_code", type: "string", nullable: true}
+          - {name: "blood_type", type: "string", nullable: true}
+          - {name: "lab_hemoglobin", type: "float", nullable: true}
+          - {name: "lab_leukocytes", type: "float", nullable: true}
+          - {name: "lab_glucose", type: "float", nullable: true}
+          - {name: "lab_cholesterol", type: "float", nullable: true}
+          - {name: "symptoms_list", type: "ARRAY<STRING>", nullable: true}
+          - {name: "chronic_list", type: "ARRAY<STRING>", nullable: true}
+          - {name: "department_name", type: "string", nullable: true}
+          - {name: "profession_name", type: "string", nullable: true}

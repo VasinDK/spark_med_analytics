@@ -6,9 +6,14 @@
 # ====================================================================================
 
 -include .env
-export
+export $(shell sed 's/=.*//' .env)
 
 SPARK_ENV ?= dev
+
+CLICKHOUSE_USER ?= user
+CLICKHOUSE_PASSWORD ?= 123
+CLICKHOUSE_HOST ?= your-clickhouse-host
+CLICKHOUSE_PORT ?= 8123
 
 CLUSTER_NAME := $(shell uv run yq -r '.infrastructure.cluster_name' config/$(SPARK_ENV)_config.yaml)
 CODE_BUCKET  := $(shell uv run yq -r '.infrastructure.code_bucket' config/$(SPARK_ENV)_config.yaml)
@@ -16,13 +21,17 @@ DEPENDENCIES  := $(shell uv run yq -r '.infrastructure.dependencies' config/$(SP
 S3_DEPARTMENTS_CSV := $(shell uv run yq -r '.s3.departments_csv | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
 S3_PROFESSIONS_CSV := $(shell uv run yq -r '.s3.professions_csv | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
 WHL_FILE := $(shell uv run yq -r '.infrastructure.whl_file' config/$(SPARK_ENV)_config.yaml)
+SCHEMAS_TABLES := $(shell uv run yq -r '.infrastructure.schemas' config/$(SPARK_ENV)_config.yaml)
 REPOSITORIES := $(shell uv run yq -r '.repositories' config/$(SPARK_ENV)_config.yaml)
 PACKAGES := $(shell uv run yq -r '.packages' config/$(SPARK_ENV)_config.yaml)
-DB_CATALOG := $(shell uv run yq -r '.db.catalog' config/$(SPARK_ENV)_config.yaml)
+PACKAGES_GOLD := $(shell uv run yq -r '.packages_gold' config/$(SPARK_ENV)_config.yaml)
+DB_SILVER_CAT := $(shell uv run yq -r '.databases.silver.catalog' config/$(SPARK_ENV)_config.yaml)
+DB_GOLD_CLICK_CAT := $(shell uv run yq -r '.databases.gold_clickhouse.catalog' config/$(SPARK_ENV)_config.yaml)
 SILVER := $(shell uv run yq -r '.s3.silver_warehouse | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
 STORAGE := $(shell uv run yq -r '.s3.storage' config/$(SPARK_ENV)_config.yaml)
 LOG_LEVEL := $(shell uv run yq -r '.log_level.spark_sql' config/$(SPARK_ENV)_config.yaml)
 S3_BRONZE_PATH := $(shell uv run yq -r '.s3.bronze' config/$(SPARK_ENV)_config.yaml)
+
 
 .PHONY: sync generate test lint build clean help
 		refs-dev silver-dev gold-dev 
@@ -84,7 +93,13 @@ deps:
 	uv run pip download -r requirements-cloud.txt -d dist/dependencies/ && \
 	for whl in dist/dependencies/*.whl; do unzip -q $$whl -d dist/unpacked_libs/; done && \
 	(cd dist/unpacked_libs && zip -q -r ../dependencies.zip .) && \
-	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip
+	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
+	yc storage s3 cp config/schemas.yaml s3://$(CODE_BUCKET)/$(SCHEMAS_TABLES)
+
+# Обновление схемы данных iceberg
+migrate-iceberg:
+	@echo "Синхронизация схем Iceberg с YAML конфигом..."
+	$(SPARK_SUBMIT) scripts/sync_iceberg_schemas.py
 
 # Обновление справочников и зависимостей
 refs-dev: build
@@ -94,13 +109,13 @@ refs-dev: build
 		--name references \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/load_references.py \
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
-		--properties "spark.sql.catalog.$(DB_CATALOG)=org.apache.iceberg.spark.SparkCatalog" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).type=hadoop" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).warehouse=s3a://$(SILVER)" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).s3.endpoint=$(STORAGE)" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).s3.path-style-access=true" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT)=org.apache.iceberg.spark.SparkCatalog" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).type=hadoop" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.endpoint=$(STORAGE)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.path-style-access=true" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
 		--properties "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
 		--properties "spark.sql.logLevel=$(LOG_LEVEL)" \
 		--repositories $(REPOSITORIES) \
@@ -114,13 +129,13 @@ silver-dev: build
 		--name silver \
 		--main-python-file-uri s3a://$(CODE_BUCKET)/bronze_to_silver.py \
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
-		--properties "spark.sql.catalog.$(DB_CATALOG)=org.apache.iceberg.spark.SparkCatalog" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).type=hadoop" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).warehouse=s3a://$(SILVER)" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).s3.endpoint=$(STORAGE)" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).s3.path-style-access=true" \
-		--properties "spark.sql.catalog.$(DB_CATALOG).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT)=org.apache.iceberg.spark.SparkCatalog" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).type=hadoop" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.endpoint=$(STORAGE)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.path-style-access=true" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
 		--properties "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
 		--properties "spark.sql.logLevel=$(LOG_LEVEL)" \
 		--repositories $(REPOSITORIES) \
@@ -128,8 +143,30 @@ silver-dev: build
 		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
 	
-gold-dev:
-	echo $(SPARK_ENV_PROPS)
+gold-dev:build
+	yc dataproc job create-pyspark \
+		--cluster-name $(CLUSTER_NAME) \
+		--name gold \
+		--main-python-file-uri s3a://$(CODE_BUCKET)/silver_to_gold.py \
+		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT)=org.apache.iceberg.spark.SparkCatalog" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).type=hadoop" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.endpoint=$(STORAGE)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.path-style-access=true" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider" \
+		--properties "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions" \
+		--properties "spark.sql.catalog.$(DB_GOLD_CLICK_CAT)=com.clickhouse.spark.ClickHouseCatalog" \
+		--properties "spark.sql.catalog.$(DB_GOLD_CLICK_CAT).host=$(CLICKHOUSE_HOST)" \
+		--properties "spark.sql.catalog.$(DB_GOLD_CLICK_CAT).http_port=$(CLICKHOUSE_PORT)" \
+		--properties "spark.sql.catalog.$(DB_GOLD_CLICK_CAT).user=$(CLICKHOUSE_USER)" \
+		--properties "spark.sql.catalog.$(DB_GOLD_CLICK_CAT).password=$(CLICKHOUSE_PASSWORD)" \
+		--properties "spark.sql.logLevel=$(LOG_LEVEL)" \
+		--repositories $(REPOSITORIES) \
+		--packages $(PACKAGES),$(PACKAGES_GOLD) \
+		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
+		--async=false
 
 check-env:
 	@echo "Текущая среда: $(SPARK_ENV)"
