@@ -60,20 +60,24 @@ def sync_table_columns(
             stats.columns_deleted += 1
 
     for field in yaml_fields:
-        f_name = field['name']
-        f_name_lower = f_name.lower()
+        f_name = field['name'].lower()
         f_type_raw = field['type']
-        f_type_normalized = f_type_raw
 
-        if f_name_lower not in current_columns:
+        if f_name not in current_columns:
             if not field.get('nullable', True):
                 raise ColumnNotNullError()
             logger.info(constants.ADDING_NEW_COLUMN.format(f_name, f_type_raw, target_address))
             spark.sql(f"ALTER TABLE {target_address} ADD COLUMN {f_name} {f_type_raw}")
             stats.columns_added += 1
         else:
-            current_type = current_columns[f_name_lower]
-            if current_type != f_type_normalized:
+            try:
+                current_type = spark.sql(f"SELECT CAST(null AS {current_columns[f_name]})").shema[0].dataType
+                f_type_raw = spark.sql(f"SELECT CAST(null AS {f_type_raw})").shema[0].dataType
+            except Exception as parse_err:
+                print(f"Не удалось распознать тип '{f_type_raw}' для поля {f_type_raw}: {parse_err}")
+                continue
+            
+            if current_type != f_type_raw:
                 logger.info(constants.CHANGING_COLUMN_TYPE.format(f_name, target_address, current_type, f_type_raw))
                 spark.sql(f"ALTER TABLE {target_address} ALTER COLUMN {f_name} SET DATA TYPE {f_type_raw}")
                 stats.types_changed += 1
