@@ -2,21 +2,22 @@ from pyspark.sql import DataFrame
 from pyspark.sql.functions import round, col, coalesce, lit, to_timestamp, md5, concat_ws, when
 from src.core.data_catalog_registry import DataCatalogRegistry
 
-def cast_bronze(df: DataFrame, registry: DataCatalogRegistry) -> DataFrame:
-    select_exprs = []
-    for field in registry.get_fields("bronze", "visits_raw"):
-        name = field['name']
-        target_type = field['type']
-        
-        if "list" in target_type or "array" in target_type:
-            select_exprs.append(f"cast({name} as array<string>) as {name}")
-        elif name == "_corrupt_record":
-            select_exprs.append(f"cast({name} as string) as {name}")
-        else:
-            select_exprs.append(f"cast({name} as {target_type}) as {name}")
+def cast_bronze(registry: DataCatalogRegistry):
+    def _inner(df: DataFrame) -> DataFrame:
+        select_exprs = []
+        for field in registry.get_fields("bronze", "visits_raw"):
+            name = field['name']
+            target_type = field['type']
+            
+            if "list" in target_type or "array" in target_type:
+                select_exprs.append(f"cast({name} as array<string>) as {name}")
+            elif name == "_corrupt_record":
+                select_exprs.append(f"cast({name} as string) as {name}")
+            else:
+                select_exprs.append(f"cast({name} as {target_type}) as {name}")
 
-    return df.selectExpr(*select_exprs)
-
+        return df.selectExpr(*select_exprs)
+    return _inner
 
 # добавить сокрытие СНИЛС, так как это персональные медицинские данные
 

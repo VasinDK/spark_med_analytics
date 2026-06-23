@@ -9,7 +9,6 @@ from src.utils import validate
 from src.core.schema_manager import get_s3_url_schemas
 from src.core.data_catalog_registry import DataCatalogRegistry
 from src.core.writer import merge_table_from_view, upsert_array_relation
-from functools import partial
 
 TEMP_SILVER_DATA = "temp_silver_data"
 
@@ -26,18 +25,23 @@ def run_etl_silver():
             .json(build_s3_path(config["s3"]["visits_json"]))
         )
 
-        corrupt_count = df_raw.filter(df_raw["_corrupt_record"].isNotNull()).count()
-        if corrupt_count > 0:
-            print(f"Внимание! Найдено {corrupt_count} сломанных JSON-строк.")
+        df_bronze = df_raw.transform(cast_bronze(registry))
 
-        df_clean, df_quarantine, metrics = validate(spark, cast_bronze(df_raw, registry), config["dq_rule"])
-        add_quarantine(df_quarantine, build_s3_path(config["s3"]["quarantine_path"]))
+        df_clean, df_quarantine, metrics = validate(df_bronze, config["dq_rule"])
+        
+        if metrics.invalid_rows > 0:    
+            add_quarantine(df_quarantine, build_s3_path(config["s3"]["quarantine_path"]))
 
-        df_silver = (
-            df_clean.transform(cast_visit_date).transform(add_id).transform(add_bmi)
-        )
-        df_silver.localCheckpoint(eager=True)
-        df_silver.createOrReplaceTempView(TEMP_SILVER_DATA)
+        if metrics.total_rows == 0:
+            return
+
+        df_silver = (df_clean
+            .transform(cast_visit_date)
+            .transform(add_id)
+            .transform(add_bmi))
+        
+        df_silver_ready = df_silver.localCheckpoint(eager=True)
+        df_silver_ready.createOrReplaceTempView(TEMP_SILVER_DATA)
 
         merge_table_from_view(spark, registry, 'silver', 'visits', TEMP_SILVER_DATA)
 

@@ -2,7 +2,6 @@ import sys
 from src.logging_config import setup_logging
 from src.decorators import monitor_job
 from src.core.session import get_spark_session
-from src.utils import get_tables_address
 from pyspark.sql.functions import collect_list
 from src.core.data_catalog_registry import DataCatalogRegistry
 from src.core.schema_manager import get_s3_url_schemas

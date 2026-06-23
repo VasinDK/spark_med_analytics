@@ -4,7 +4,6 @@ from typing import Dict, Any, List, Tuple
 from pyspark.sql import SparkSession
 import pyspark.sql.types as pyspark_types
 from pyspark.sql.types import StructType, StructField, StringType
-from src.utils.db import normalize_type
 
 class DataCatalogRegistry:
     def __init__(self, yaml_content: dict):
@@ -65,7 +64,7 @@ class DataCatalogRegistry:
         struct_fields = []
         for field in yaml_fields:
             col_name = field['name'].lower()
-            norm_type = normalize_type(field['type'])
+            norm_type = field['type']
             spark_type_name = norm_type.capitalize() + "Type"
             spark_type_class = getattr(pyspark_types, spark_type_name, StringType)
             spark_type_object = spark_type_class()

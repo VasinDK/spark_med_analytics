@@ -1,5 +1,6 @@
 import logging
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, explode
 from src.core.data_catalog_registry import DataCatalogRegistry
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,8 @@ def merge_table_from_view(
             VALUES ({insert_values})
     """)
 
+# There are no custom fields. All fields are internal. SQL injection is not applicable. 
 def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
-    if spark.table(source_view).isEmpty():
-        logger.info(f"Вьюха {source_view} пуста. Пропуск UPSERT для {target['table_address']}")
-        return
-    
     spark.sql(f"DELETE FROM {target['table_address']} WHERE visit_id IN (SELECT id FROM {source_view})")
 
     spark.sql(f"""
@@ -52,3 +50,4 @@ def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
         FROM {source_view}
         WHERE {target['raw_col']} IS NOT NULL
     """)
+    

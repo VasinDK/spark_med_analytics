@@ -3,10 +3,9 @@ from src.logging_config import setup_logging
 from src.core.session import get_spark_session
 from src.core.schema_manager import get_s3_url_schemas
 from src.utils.s3 import read_s3_csv, build_s3_path
-from src.utils.db import upsert_iceberg_table
-from src.utils import get_tables_address
 from src.core.data_catalog_registry import DataCatalogRegistry
 from src.decorators import monitor_job
+from src.core.writer import merge_table_from_view
 
 TEMP_DF_DEPARTMENTS = "temp_df_departments"
 TEMP_DF_PROFESSIONS = "temp_df_professions"
@@ -28,8 +27,10 @@ def run_etl_reference():
         df_raw_departments.createOrReplaceTempView(TEMP_DF_DEPARTMENTS)
         df_raw_professions.createOrReplaceTempView(TEMP_DF_PROFESSIONS)
 
-        upsert_iceberg_table(spark, registry.get_table_address("silver", "departments"), TEMP_DF_DEPARTMENTS)
-        upsert_iceberg_table(spark, registry.get_table_address("silver", "professions"), TEMP_DF_PROFESSIONS)
+        # upsert_iceberg_table(spark, registry.get_table_address("silver", "departments"), TEMP_DF_DEPARTMENTS)
+        # upsert_iceberg_table(spark, registry.get_table_address("silver", "professions"), TEMP_DF_PROFESSIONS)
+        merge_table_from_view(spark, registry, 'silver', 'departments', TEMP_DF_DEPARTMENTS)
+        merge_table_from_view(spark, registry, 'silver', 'professions', TEMP_DF_PROFESSIONS)
 
     finally:
         spark.stop()

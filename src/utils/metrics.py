@@ -2,7 +2,6 @@ from dataclasses import dataclass, asdict
 
 @dataclass
 class MetricsValidate:
-    spark_app_id: str = ''
     total_rows: int = 0
     valid_rows: int = 0
     invalid_rows: int = 0

@@ -1,7 +1,6 @@
 import logging
 from typing import List, Dict, Any
 from pyspark.sql import SparkSession
-from src.utils.db import normalize_type
 from src.utils.metrics import StatsTableSync
 from src.exceptions import ColumnNotNullError
 from src.constants import constants
@@ -20,7 +19,7 @@ def create_table_ice(spark: SparkSession, table_address: str, table_meta: Dict[s
     columns_spec = []
     for field in fields:
         col_name = field['name'].lower()
-        col_type = normalize_type(field['type'])
+        col_type = field['type']
         null_str = "NOT NULL" if not field.get('nullable', True) else ""
         
         columns_spec.append(f"{col_name} {col_type} {null_str}".strip())
@@ -50,7 +49,7 @@ def sync_table_columns(
     stats: StatsTableSync
 ) -> None:
     current_list_col = spark.catalog.listColumns(target_address)
-    current_columns = {col.name.lower(): normalize_type(col.dataType) for col in current_list_col}
+    current_columns = {col.name.lower(): col.dataType for col in current_list_col}
     yaml_columns = {f['name'].lower(): f for f in yaml_fields}
 
     for col_name, _ in list(current_columns.items()):
@@ -64,7 +63,7 @@ def sync_table_columns(
         f_name = field['name']
         f_name_lower = f_name.lower()
         f_type_raw = field['type']
-        f_type_normalized = normalize_type(f_type_raw)
+        f_type_normalized = f_type_raw
 
         if f_name_lower not in current_columns:
             if not field.get('nullable', True):

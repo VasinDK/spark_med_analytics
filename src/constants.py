@@ -33,3 +33,6 @@ COLUMN_NOT_NULL = "The column being added to the iceberg cannot be 'not null'"
 UPLOADING_FILE = "Uploading the file along the path: {}"
 FILE_NOT_FOUND ="The file was not found on the way: {}"
 ERROR_READING_YAML_FILE ="The file was not found on the way: {}"
+
+BROKEN_JSON_STRINGS = "Attention! {corrupt_count} broken JSON strings found"
+ERR_CORRUPT_JSON = "Malformed JSON record could not be parsed"
