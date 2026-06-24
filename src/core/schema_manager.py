@@ -71,8 +71,8 @@ def sync_table_columns(
             stats.columns_added += 1
         else:
             try:
-                current_type = spark.sql(f"SELECT CAST(null AS {current_columns[f_name]})").shema[0].dataType
-                f_type_raw = spark.sql(f"SELECT CAST(null AS {f_type_raw})").shema[0].dataType
+                current_type = getSparkType(spark, current_columns[f_name])
+                f_type_raw = getSparkType(spark, f_type_raw)
             except Exception as parse_err:
                 print(f"Не удалось распознать тип '{f_type_raw}' для поля {f_type_raw}: {parse_err}")
                 continue
@@ -109,3 +109,6 @@ def get_s3_url_schemas(config: dict) -> str:
     schemas = f"{config['infrastructure']['schemas']}".strip("/")
     
     return f"s3a://{code_bucket}/{schemas}"
+
+def getSparkType(spark: SparkSession, type_raw: str):
+    return spark.sql(f"SELECT CAST(null AS {type_raw})").shema[0].dataType

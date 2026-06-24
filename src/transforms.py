@@ -1,5 +1,5 @@
 from pyspark.sql import DataFrame
-from pyspark.sql.functions import round, col, coalesce, lit, to_timestamp, md5, concat_ws, when
+from pyspark.sql.functions import round as _round, col, coalesce, lit, to_timestamp, md5, concat_ws, when
 from src.core.data_catalog_registry import DataCatalogRegistry
 
 def cast_bronze(registry: DataCatalogRegistry):
@@ -41,6 +41,6 @@ def add_bmi(df: DataFrame) -> DataFrame:
     return df.withColumn("bmi", 
         when (
             (col("height") > 0) & (col("weight") > 0),
-            round(col("weight") / ((col("height") / 100) **2) ,1)
+            _round(col("weight") / ((col("height") / 100) **2) ,1)
         )
     )

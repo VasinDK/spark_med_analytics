@@ -3,7 +3,7 @@ from src.logging_config import setup_logging
 from src.decorators import monitor_job
 from src.core.session import get_spark_session
 from src.utils.s3 import build_s3_path
-from src.utils.db import add_quarantine
+from src.utils._db import add_quarantine
 from src.transforms import cast_visit_date, add_id, add_bmi, cast_bronze
 from src.utils import validate
 from src.core.schema_manager import get_s3_url_schemas
@@ -48,14 +48,16 @@ def run_etl_silver():
         symptoms_target = {
             "table_address": registry.get_table_address('silver', 'visits_symptoms'),
             "raw_col": "symptoms_code",
-            "target_col": "symptoms_code"
+            "target_col": "symptoms_code",
+            'all_columns': [f["name"].lower() for f in registry.get_fields('silver', 'visits_symptoms')],
         }
         upsert_array_relation(spark, symptoms_target, TEMP_SILVER_DATA)
 
         chronic_target = {
             "table_address": registry.get_table_address('silver', 'visits_chronic'),
             "raw_col": "chronic_diseases",
-            "target_col": "chronic_diseases"
+            "target_col": "chronic_diseases",
+            'all_columns': [f["name"].lower() for f in registry.get_fields('silver', 'visits_chronic')],
         }
         upsert_array_relation(spark, chronic_target, TEMP_SILVER_DATA)
 

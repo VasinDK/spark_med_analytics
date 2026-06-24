@@ -48,15 +48,7 @@ from pyspark.sql import SparkSession, DataFrame
 #         key: f"{db_schema}.{value}" for key, value in db_config['tables'].items()
 #     }
 
-def add_quarantine(df: DataFrame, url: str): 
-    try:
-        (df.write
-            .mode("append")
-            .format("parquet")
-            .option("mergeSchema", "true")
-            .save(url))
-    except Exception as e:
-        raise QuarantineWriteError(constants.QUARANTINE_WRITE_ERROR.format(e)) from e
+
 
 # def normalize_type(data_type: str) -> str:
 #     clean_type = data_type.lower().strip()

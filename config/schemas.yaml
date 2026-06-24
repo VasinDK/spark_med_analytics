@@ -64,6 +64,8 @@ databases:
           - {name: "lab_leukocytes", type: "float", nullable: true}
           - {name: "lab_glucose", type: "float", nullable: true}
           - {name: "lab_cholesterol", type: "float", nullable: true}
+          - {name: "created_at", type: "timestamp", nullable: true}
+          - {name: "updated_at", type: "timestamp", nullable: true}
 
       departments:
         description: "Medical departments reference directory"
@@ -92,6 +94,8 @@ databases:
           - {name: "visit_id", type: "string", nullable: false}
           - {name: "symptoms_code", type: "string", nullable: false}
           - {name: "visit_date", type: "timestamp", nullable: false}
+          - {name: "created_at", type: "timestamp", nullable: true}
+          - {name: "updated_at", type: "timestamp", nullable: true}
 
       visits_chronic:
         description: "Chronic diseases identified or updated during medical visits"
@@ -102,6 +106,8 @@ databases:
           - {name: "visit_id", type: "string", nullable: false}
           - {name: "chronic_diseases", type: "string", nullable: false}
           - {name: "visit_date", type: "timestamp", nullable: false}
+          - {name: "created_at", type: "timestamp", nullable: true}
+          - {name: "updated_at", type: "timestamp", nullable: true}
 
   gold:
     catalog: "iceberg"
@@ -138,3 +144,5 @@ databases:
           - {name: "chronic_list", type: "ARRAY<STRING>", nullable: true}
           - {name: "department_name", type: "string", nullable: true}
           - {name: "profession_name", type: "string", nullable: true}
+          - {name: "created_at", type: "timestamp", nullable: true}
+          - {name: "updated_at", type: "timestamp", nullable: true}

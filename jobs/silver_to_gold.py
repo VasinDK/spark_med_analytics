@@ -15,16 +15,20 @@ def run_etl_gold():
         registry = DataCatalogRegistry.from_s3_yaml_file(spark, get_s3_url_schemas(config))
 
         df_visits = spark.read.table(registry.get_table_address("silver","visits"))
+
         df_symptoms = spark.read.table(registry.get_table_address("silver","visits_symptoms"))
         df_symptoms_grouped = df_symptoms.groupBy("visit_id", "visit_date").agg(
             collect_list("symptoms_code").alias("symptoms_list")
         )
+
         df_chronic = spark.read.table(registry.get_table_address("silver", "visits_chronic"))
         df_chronic_grouped = df_chronic.groupBy("visit_id", "visit_date").agg(
             collect_list("chronic_diseases").alias("chronic_list")
         )
+
         df_departments = spark.read.table(registry.get_table_address("silver", "departments"))
         df_departments_prepared = df_departments.withColumnRenamed("name", "department_name")
+
         df_professions = spark.read.table(registry.get_table_address("silver", "professions"))
         df_professions_prepared = df_professions.withColumnRenamed("name", "profession_name")
 
@@ -50,12 +54,12 @@ def run_etl_gold():
             .join(df_professions_prepared, on = df_visits["profession_id"] == df_professions_prepared["id"], how="left")
             .drop(df_professions_prepared["id"])
         )
-        # обновлять раз в сутки последние 3 дня
+        # обновлять раз в сутки последние 7 дней. Трать из yaml
+
         (df_total.write
          .format("iceberg")
          .mode("overwrite")
          .option("write.format.default", "parquet")
-         .partitionBy("visit_date")
          .save(registry.get_table_address("gold","visits")))
 
     finally:
