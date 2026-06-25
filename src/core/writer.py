@@ -63,9 +63,9 @@ def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
     distinct_days = [
         str(row["visit_day"]) 
         for row in spark.sql(f"""
-                                SELECT DISTINCT date(visit_date) AS visit_day 
-                                FROM {source_view} WHERE visit_date IS NOT NULL
-                            """).collect()
+            SELECT DISTINCT date(visit_date) AS visit_day 
+            FROM {source_view} WHERE visit_date IS NOT NULL
+        """).collect()
     ]
     
     if distinct_days:

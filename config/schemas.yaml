@@ -41,7 +41,7 @@ databases:
         description: "Cleaned and validated medical visits data"
         status: "active"
         owner: "data-core-team"
-        partition_by: ["days(visit_date)"]
+        # partition_by: ["days(visit_date)"]
         merge_keys: ["visit_date", "snils", "disease_code"]
         fields:
           - {name: "id", type: "string", nullable: false}
@@ -117,8 +117,7 @@ databases:
         description: "Showcase of all visit data doctor visits"
         status: "active"
         owner: "data-core-team"
-        partition_by: ["days(visit_date)"]
-        # merge_keys: ["visit_date", "snils", "disease_code"]
+        partition_by: ["days(created_at)"]
         fields:
           - {name: "id", type: "string", nullable: false}
           - {name: "visit_date", type: "timestamp", nullable: true}
@@ -140,8 +139,8 @@ databases:
           - {name: "lab_leukocytes", type: "float", nullable: true}
           - {name: "lab_glucose", type: "float", nullable: true}
           - {name: "lab_cholesterol", type: "float", nullable: true}
-          - {name: "symptoms_list", type: "ARRAY<STRING>", nullable: true}
-          - {name: "chronic_list", type: "ARRAY<STRING>", nullable: true}
+          - {name: "symptoms_list", type: "array<string>", nullable: true}
+          - {name: "chronic_list", type: "array<string>", nullable: true}
           - {name: "department_name", type: "string", nullable: true}
           - {name: "profession_name", type: "string", nullable: true}
           - {name: "created_at", type: "timestamp", nullable: true}

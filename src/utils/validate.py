@@ -50,7 +50,7 @@ def validate(
         return df_marked.drop("errors"), df_marked.drop("errors"), MetricsValidate()
 
     df_clean = df_marked.filter(size("errors") == 0).drop("errors")
-    df_quarantine = df_marked.filter(size("errors") > 0)
+    df_quarantine = df_marked.filter(size("errors") > 0).withColumn("created_at", current_timestamp())
     
     error_percent = (invalid_count / total_count) * 100
     
