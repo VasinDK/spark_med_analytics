@@ -3,7 +3,7 @@ from src.logging_config import setup_logging
 from src.decorators import monitor_job
 from src.core.session import get_spark_session
 from src.utils.s3 import build_s3_path
-from src.utils._db import add_quarantine
+from src.utils.db import add_quarantine
 from src.transforms import cast_visit_date, add_id, add_bmi, cast_bronze
 from src.utils import validate
 from src.core.schema_manager import get_s3_url_schemas

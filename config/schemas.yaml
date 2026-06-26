@@ -117,7 +117,8 @@ databases:
         description: "Showcase of all visit data doctor visits"
         status: "active"
         owner: "data-core-team"
-        partition_by: ["days(created_at)"]
+        # partition_by: ["days(created_at)"] 
+        merge_keys: ["id", "visit_date"]
         fields:
           - {name: "id", type: "string", nullable: false}
           - {name: "visit_date", type: "timestamp", nullable: true}
