@@ -8,6 +8,8 @@ from src.core.data_catalog_registry import DataCatalogRegistry
 from src.core.schema_manager import get_s3_url_schemas
 from src.utils.db import get_last_date
 from src.core.writer import merge_table_from_view
+from src import constants
+from src.exceptions import NoDataGoldError
 
 TEMP_GOLD_DATA = "temp_gold_data"
 
@@ -22,16 +24,14 @@ def run_etl_gold():
         gold_table_address = registry.get_table_address("gold", "visits")
         last_visit = get_last_date(spark.read.table(gold_table_address))
         watermark_date = last_visit if last_visit else "1970-01-01"
-        logger.info(f"Точка инкремента (Watermark): {watermark_date}")
+        logger.info(constants.INCREMENT_POINT.format(watermark_date))
 
         df_visits = spark.read.table(registry.get_table_address("silver", "visits")) \
             .filter(col("created_at") >= watermark_date) \
             .drop("updated_at")
 
         if df_visits.isEmpty():
-            # exception
-            logger.info("Нет новых или измененных данных для обновления слоя Gold.")
-            return
+            raise NoDataGoldError()
 
         df_active_visits = df_visits.select(col("id").alias("active_id"), col("visit_date").alias("active_date")).distinct()
 
@@ -83,7 +83,6 @@ def run_etl_gold():
 
         gold_fields = [f["name"].lower() for f in registry.get_fields("gold", "visits")]
         df_total_aligned = df_total.select(*gold_fields)
-
         df_total_aligned.createOrReplaceTempView(TEMP_GOLD_DATA)
 
         merge_table_from_view(spark, registry, 'gold', 'visits', TEMP_GOLD_DATA)

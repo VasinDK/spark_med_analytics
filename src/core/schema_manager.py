@@ -2,7 +2,7 @@ import logging
 from typing import List, Dict, Any
 from pyspark.sql import SparkSession
 from src.utils.metrics import StatsTableSync
-from src.exceptions import ColumnNotNullError
+from src.exceptions import ColumnNotNullError, SyncTableError
 from src.constants import constants
 from src.core.data_catalog_registry import DataCatalogRegistry
 
@@ -74,8 +74,7 @@ def sync_table_columns(
                 current_type = getSparkType(spark, current_columns[f_name])
                 f_type_raw = getSparkType(spark, f_type_raw)
             except Exception as parse_err:
-                print(f"Не удалось распознать тип '{f_type_raw}' для поля {f_type_raw}: {parse_err}")
-                continue
+                raise SyncTableError(constants.TYPE_COULD_NOT_BE_RECOGNIZED.format(f_type_raw, f_type_raw, parse_err))
             
             if current_type != f_type_raw:
                 logger.info(constants.CHANGING_COLUMN_TYPE.format(f_name, target_address, current_type, f_type_raw))

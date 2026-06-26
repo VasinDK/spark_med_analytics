@@ -26,7 +26,6 @@ def run_etl_silver():
         )
 
         df_bronze = df_raw.transform(cast_bronze(registry))
-
         df_clean, df_quarantine, metrics = validate(df_bronze, config["dq_rule"])
         
         if metrics.invalid_rows > 0:    

@@ -4,6 +4,8 @@ from typing import Dict, Any, List, Tuple
 from pyspark.sql import SparkSession
 import pyspark.sql.types as pyspark_types
 from pyspark.sql.types import StructType, StructField, StringType
+from src import constants
+from src.exceptions import ConfigurationError
 
 class DataCatalogRegistry:
     def __init__(self, yaml_content: dict):
@@ -18,7 +20,7 @@ class DataCatalogRegistry:
 
     def _get_layer_meta(self, layer: str) -> Dict[str, Any]:
         if layer not in self._databases:
-            raise KeyError(f"Слой '{layer}' не описан в конфигурации schemas.yaml")
+            raise ConfigurationError(constants.LAYER_IS_NOT_DESCRIBED.format(layer))
         return self._databases[layer]
     
     def get_catalog_schema(self, layer: str) -> Tuple[str, str]:
@@ -30,14 +32,11 @@ class DataCatalogRegistry:
         tables = layer_meta.get("tables", {})
         
         if table_key not in tables:
-            raise KeyError(f"Таблица '{table_key}' не найдена в слое '{layer}'.")
+            raise ConfigurationError(constants.TABLE_NOT_FOUND.format(table_key, layer))
         
         catalog = layer_meta["catalog"]
         schema = layer_meta["schema"]
         
-        # if self._env == "dev":
-        #     catalog = f"dev_{catalog}"
-            
         return f"{catalog}.{schema}.{table_key}"
 
     def get_table_metadata(self, layer: str, table_key: str) -> Dict[str, Any]:
@@ -45,7 +44,7 @@ class DataCatalogRegistry:
         tables = layer_meta.get("tables", {})
         
         if table_key not in tables:
-            raise KeyError(f"Таблица '{table_key}' не найдена в слое '{layer}'.")
+            raise ConfigurationError(constants.TABLE_NOT_FOUND.format(table_key, layer))
             
         return tables[table_key]
 

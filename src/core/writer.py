@@ -2,7 +2,7 @@ import logging
 from pyspark.sql import SparkSession, DataFrame
 from src import constants
 from src.core.data_catalog_registry import DataCatalogRegistry
-from src.exceptions import QuarantineWriteError
+from src.exceptions import QuarantineWriteError, MergeTableError
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def merge_table_from_view(
     merge_keys = registry.get_merge_keys(layer, table_key)
 
     if not merge_keys:
-        raise ValueError(f"В конфигурации schemas.yaml не заданы 'merge_keys' для {layer}.{table_key}")
+        raise MergeTableError(constants.MERGE_KEYS_ERROR.format(layer, table_key))
 
     all_columns = [f["name"].lower() for f in fields]
     key_columns = [k.lower() for k in merge_keys]

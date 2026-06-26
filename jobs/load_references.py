@@ -27,8 +27,6 @@ def run_etl_reference():
         df_raw_departments.createOrReplaceTempView(TEMP_DF_DEPARTMENTS)
         df_raw_professions.createOrReplaceTempView(TEMP_DF_PROFESSIONS)
 
-        # upsert_iceberg_table(spark, registry.get_table_address("silver", "departments"), TEMP_DF_DEPARTMENTS)
-        # upsert_iceberg_table(spark, registry.get_table_address("silver", "professions"), TEMP_DF_PROFESSIONS)
         merge_table_from_view(spark, registry, 'silver', 'departments', TEMP_DF_DEPARTMENTS)
         merge_table_from_view(spark, registry, 'silver', 'professions', TEMP_DF_PROFESSIONS)
 

@@ -19,8 +19,6 @@ def cast_bronze(registry: DataCatalogRegistry):
         return df.selectExpr(*select_exprs)
     return _inner
 
-# добавить сокрытие СНИЛС, так как это персональные медицинские данные
-
 def cast_visit_date(df: DataFrame) -> DataFrame:
     return df.withColumn("visit_date", coalesce(
                 to_timestamp(col("visit_date"), "yyyy-MM-dd HH:mm:ss"),
