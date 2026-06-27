@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 from pyspark.sql import SparkSession
 from src.utils.metrics import StatsTableSync
 from src.exceptions import ColumnNotNullError, SyncTableError
-from src.constants import constants
+from src import constants
 from src.core.data_catalog_registry import DataCatalogRegistry
 
 logger = logging.getLogger(__name__)
@@ -70,13 +70,10 @@ def sync_table_columns(
             spark.sql(f"ALTER TABLE {target_address} ADD COLUMN {f_name} {f_type_raw}")
             stats.columns_added += 1
         else:
-            try:
-                current_type = getSparkType(spark, current_columns[f_name])
-                f_type_raw = getSparkType(spark, f_type_raw)
-            except Exception as parse_err:
-                raise SyncTableError(constants.TYPE_COULD_NOT_BE_RECOGNIZED.format(f_type_raw, f_type_raw, parse_err))
-            
-            if current_type != f_type_raw:
+            current_type = getSparkType(spark, current_columns[f_name])
+            type_raw = getSparkType(spark, f_type_raw)
+
+            if current_type != type_raw:
                 logger.info(constants.CHANGING_COLUMN_TYPE.format(f_name, target_address, current_type, f_type_raw))
                 spark.sql(f"ALTER TABLE {target_address} ALTER COLUMN {f_name} SET DATA TYPE {f_type_raw}")
                 stats.types_changed += 1
@@ -110,4 +107,7 @@ def get_s3_url_schemas(config: dict) -> str:
     return f"s3a://{code_bucket}/{schemas}"
 
 def getSparkType(spark: SparkSession, type_raw: str):
-    return spark.sql(f"SELECT CAST(null AS {type_raw})").shema[0].dataType
+    try:
+        return spark.sessionState.sqlParser().parseDataType(type_raw)
+    except Exception as e:
+         raise SyncTableError(constants.TYPE_COULD_NOT_BE_RECOGNIZED.format(type_raw))

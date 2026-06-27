@@ -13,7 +13,8 @@ CRITICAL_ERROR_PERCENT_DETAILS = "[CRITICAL ERROR] Error percent {:.2f}% exceeds
 
 EMPTY_INPUT_WARNING = "[SPARK WARN] Input DataFrame is empty. Processing stopped."
 SPARK_ANALYSIS_ERROR = "[SPARK ERROR] Data or SQL failure: {}"
-TYPE_COULD_NOT_BE_RECOGNIZED = "[SPARK ERROR] The type '{}' could not be recognized for the field {}: {}"
+TYPE_COULD_NOT_BE_RECOGNIZED = "[SPARK ERROR] The type '{}' could not be recognized"
+SPARK_STOP_ERROR = "[SPARK ERROR] spark stop error: {}"
 
 
 REPORT_SCHEMA_SYNCHRONIZATION = "[ICEBERG INFO] FINAL SCHEMA SYNCHRONIZATION REPORT"

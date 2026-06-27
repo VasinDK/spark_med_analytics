@@ -30,50 +30,33 @@ def merge_table_from_view(
     if "updated_at" in all_columns: 
         update_pairs.append("t.updated_at = current_timestamp()")  
 
-    update_clause = ", ".join(update_pairs)
-
     insert_cols = ", ".join(all_columns)
-    insert_values_list = []
-    for col in all_columns:
-        if col == "created_at" or col == "updated_at":
-            insert_values_list.append("current_timestamp()") 
-        else:
-            insert_values_list.append(f"td.{col}")
-            
-    insert_values = ", ".join(insert_values_list)
-
-    matched_clause = ""
-    if update_clause:
-        matched_clause = f"""
-            WHEN MATCHED THEN
-                UPDATE SET {update_clause}
-        """
+    insert_values = ", ".join(["current_timestamp()" if col in ("created_at", "updated_at") else f"td.{col}" for col in all_columns])
+    update_clause = f"WHEN MATCHED THEN UPDATE SET {', '.join(update_pairs)}" if update_pairs else ""
 
     spark.sql(f"""
         MERGE INTO {target_table} t
         USING {source_view} td
         ON {on_clause}
-        {matched_clause}
+        {update_clause}
         WHEN NOT MATCHED THEN
             INSERT ({insert_cols})
             VALUES ({insert_values})
     """)
 
 def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
-    distinct_days = [
-        str(row["visit_day"]) 
-        for row in spark.sql(f"""
-            SELECT DISTINCT date(visit_date) AS visit_day 
-            FROM {source_view} WHERE visit_date IS NOT NULL
-        """).collect()
-    ]
-    
-    if distinct_days:
-        dates_str = ", ".join([f"'{d}'" for d in distinct_days])
+    bounds = spark.sql(f"SELECT min(visit_date), max(visit_date) FROM {source_view}").collect()[0]
+    min_date = bounds[0]
+    max_date = bounds[1]
+
+    if min_date and max_date:
         spark.sql(f"""
-            DELETE FROM {target['table_address']} 
-            WHERE date(visit_date) IN ({dates_str}) 
-            AND visit_id IN (SELECT id FROM {source_view})
+            MERGE INTO {target['table_address']} t
+            USING {source_view} src
+            ON t.visit_id = src.id 
+                AND t.visit_date = src.visit_date
+                AND t.visit_date BETWEEN '{min_date}' AND '{max_date}' 
+            WHEN MATCHED THEN DELETE
         """)
 
     select_exprs = []

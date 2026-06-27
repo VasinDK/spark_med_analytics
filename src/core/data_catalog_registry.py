@@ -2,8 +2,7 @@ import os
 import yaml
 from typing import Dict, Any, List, Tuple
 from pyspark.sql import SparkSession
-import pyspark.sql.types as pyspark_types
-from pyspark.sql.types import StructType, StructField, StringType
+from pyspark.sql.types import StructType, StructField
 from src import constants
 from src.exceptions import ConfigurationError
 
@@ -57,19 +56,18 @@ class DataCatalogRegistry:
         tables = layer_meta.get("tables", {})
         return [k for k, v in tables.items() if v.get("status") == "active"]
 
-    def get_spark_schema(self, layer: str, table_key: str) -> StructType:
+    def get_spark_schema(self, spark, layer: str, table_key: str) -> StructType:
         yaml_fields = self.get_fields(layer, table_key)
     
         struct_fields = []
         for field in yaml_fields:
             col_name = field['name'].lower()
-            norm_type = field['type']
-            spark_type_name = norm_type.capitalize() + "Type"
-            spark_type_class = getattr(pyspark_types, spark_type_name, StringType)
-            spark_type_object = spark_type_class()
+            norm_type = field['type'].lower()
+
+            spark_type_object = spark.sessionState.sqlParser().parseDataType(norm_type)
             is_nullable = field.get('nullable', True)
             struct_fields.append(StructField(col_name, spark_type_object, is_nullable))
-            
+        
         return StructType(struct_fields)
     
     def get_merge_keys(self, layer: str, table_key: str) -> list:
