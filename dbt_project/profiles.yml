@@ -1,0 +1,17 @@
+dbt_project:
+  target: prod
+  outputs:
+    prod:
+      type: clickhouse
+      host: "{{ env_var('CLICKHOUSE_HOST') }}"
+      port: "{{ env_var('CLICKHOUSE_PORT') }}"
+      user: "{{ env_var('CLICKHOUSE_USER') }}"
+      password: "{{ env_var('CLICKHOUSE_PASSWORD') }}"
+      database: "{{ env_var('CLICKHOUSE_DATABASE') }}"
+      threads: 4
+      secure: False
+      verify: False
+      connect_timeout: 10
+      send_receive_timeout: 300
+      settings:
+        mutations_sync: 1

@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: visits
+    description: "Showcase of all visit data doctor visits. Synchronized incrementally from the Iceberg Gold layer."
+    meta:
+      status: "active"
+      owner: "data-core-team"
+    
+    columns:
+      - name: id
+        description: "Unique identifier of the visit (Primary Key)."
+        tests:
+          - not_null
+      - name: visit_date
+        description: "Date and time of the doctor visit."
+        tests:
+          - not_null
+      - name: event_date
+        description: "Technical ClickHouse column (rounding visit_date to the beginning of the day) used for partitioning."
+      - name: age
+        description: "Patient's age."
+      - name: gender_id
+        description: "Patient's gender ID."
+      - name: profession_id
+        description: "Patient's profession ID."
+      - name: doctor_id
+        description: "Attending doctor's ID."
+      - name: department_id
+        description: "Medical department ID."
+      - name: snils
+        description: "Patient's SNILS (State Russian Insurance Number)."
+      - name: height
+        description: "Patient's height (cm)."
+      - name: weight
+        description: "Patient's weight (kg)."
+      - name: bmi
+        description: "Body Mass Index (BMI)."
+      - name: temperature
+        description: "Body temperature during examination."
+      - name: bp_systolic
+        description: "Systolic (upper) blood pressure."
+      - name: bp_diastolic
+        description: "Diastolic (lower) blood pressure."
+      - name: disease_code
+        description: "ICD disease code."
+      - name: blood_type
+        description: "Patient's blood type."
+      - name: lab_hemoglobin
+        description: "Laboratory indicator: hemoglobin."
+      - name: lab_leukocytes
+        description: "Laboratory indicator: leukocytes."
+      - name: lab_glucose
+        description: "Laboratory indicator: glucose."
+      - name: lab_cholesterol
+        description: "Laboratory indicator: cholesterol."
+      - name: symptoms_list
+        description: "List of symptoms (Array of strings)."
+      - name: chronic_list
+        description: "List of chronic diseases (Array of strings)."
+      - name: department_name
+        description: "Name of the medical department."
+      - name: profession_name
+        description: "Name of the profession."
+      - name: created_at
+        description: "Timestamp when the record was created in the source system."
+      - name: updated_at
+        description: "Technical column: timestamp of the last record update. Used for incremental logic and ReplacingMergeTree deduplication."
+        tests:
+          - not_null

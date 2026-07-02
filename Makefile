@@ -5,10 +5,18 @@
 # makefile, uv, yq
 # ====================================================================================
 
--include .env
-export $(shell sed 's/=.*//' .env)
+ifneq ($(wildcard .env),)
+    include .env
+    export
+endif
 
 SPARK_ENV ?= dev
+
+ifeq ($(SPARK_ENV),dev)
+    PROFILE_FLAG := --profile dev
+else
+    PROFILE_FLAG :=
+endif
 
 CLICKHOUSE_USER ?= user
 CLICKHOUSE_PASSWORD ?= 123
@@ -28,6 +36,7 @@ PACKAGES_GOLD := $(shell uv run yq -r '.packages_gold' config/$(SPARK_ENV)_confi
 DB_SILVER_CAT := $(shell uv run yq -r '.databases.silver.catalog' config/$(SPARK_ENV)_config.yaml)
 DB_GOLD_CLICK_CAT := $(shell uv run yq -r '.databases.gold_clickhouse.catalog' config/$(SPARK_ENV)_config.yaml)
 SILVER := $(shell uv run yq -r '.s3.silver_warehouse | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
+GOLD := $(shell uv run yq -r '.s3.gold_warehouse | .bucket + "/" + .path' config/$(SPARK_ENV)_config.yaml)
 STORAGE := $(shell uv run yq -r '.s3.storage' config/$(SPARK_ENV)_config.yaml)
 LOG_LEVEL := $(shell uv run yq -r '.log_level.spark_sql' config/$(SPARK_ENV)_config.yaml)
 S3_BRONZE_PATH := $(shell uv run yq -r '.s3.bronze' config/$(SPARK_ENV)_config.yaml)
@@ -96,11 +105,6 @@ deps:
 	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
 	yc storage s3 cp config/schemas.yaml s3://$(CODE_BUCKET)/$(SCHEMAS_TABLES)
 
-# Обновление схемы данных iceberg
-migrate-iceberg:
-	@echo "Синхронизация схем Iceberg с YAML конфигом..."
-	$(SPARK_SUBMIT) scripts/sync_iceberg_schemas.py
-
 # Обновление справочников и зависимостей
 refs-dev: build
 #  deps
@@ -151,7 +155,7 @@ gold-dev:build
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT)=org.apache.iceberg.spark.SparkCatalog" \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT).type=hadoop" \
-		--properties "spark.sql.catalog.$(DB_SILVER_CAT).warehouse=s3a://$(SILVER)" \
+		--properties "spark.sql.catalog.$(DB_SILVER_CAT).warehouse=s3a://$(GOLD)" \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT).io-impl=org.apache.iceberg.aws.s3.S3FileIO" \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.endpoint=$(STORAGE)" \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT).s3.path-style-access=true" \
@@ -168,8 +172,40 @@ gold-dev:build
 		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
 
-check-env:
+docker-build:
+	docker compose $(PROFILE_FLAG) build
+	docker compose build dbt
+
+docker-up:
+		docker compose $(PROFILE_FLAG) up -d
+
+docker-down:
+# -v
+	docker compose --profile "*" down --remove-orphans -v
+
+docker-restart: docker-down docker-up
+
+docker-ps:
+	docker compose $(PROFILE_FLAG) ps
+
+docker-logs:
+	docker compose logs -f airflow
+
+deploy:
+	git pull
+
+dbt-run:
+	docker compose run --rm dbt dbt run
+
+dbt-test:
+	docker compose run --rm dbt dbt test
+
+dbt-docs:
+	docker compose run --rm -p 8081:8080 dbt bash -c "dbt docs generate && dbt docs serve --port 8080"
+
+check:
 	@echo "Текущая среда: $(SPARK_ENV)"
 	@echo "Ищем файл: config/$(SPARK_ENV)_config.yaml"
 	@echo "Имя кластера из YAML: $(CLUSTER_NAME)"
+	@echo "GOLD из YAML: $(GOLD)"
 	

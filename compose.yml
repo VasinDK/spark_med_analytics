@@ -1,0 +1,94 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: clickhouse_analytics
+    ports:
+      - "8123:8123" # analytics BI
+      - "9000:9000" # dbt clients
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DB=${CLICKHOUSE_DATABASE}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - TZ=${TZ}
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    restart: always
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: airflow_metadata_db
+    environment:
+      POSTGRES_USER: ${AIR_DB_USER}
+      POSTGRES_PASSWORD: ${AIR_DB_PASS}
+      POSTGRES_DB: ${AIR_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIR_DB_USER} -d ${AIR_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  airflow:
+    image: apache/airflow:3.1.7
+    container_name: airflow_orchestrator
+    user: "${AIR_UID}:0"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_USER}:${AIR_DB_PASS}@airflow_metadata_db/${AIR_DB}
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.session,airflow.api.auth.backend.basic_auth'
+      STORAGE: ${STORAGE}
+      GOLD: ${GOLD}
+      ICE_ACCESS_KEY_ID: ${ICE_ACCESS_KEY_ID}
+      ICE_SECRET_ACCESS_KEY: ${ICE_SECRET_ACCESS_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      bash -c "airflow db migrate && 
+      airflow standalone"
+    restart: always
+
+  dbt:
+    build:
+      context: .
+      dockerfile: dockerfile.dbt
+    container_name: dbt_worker
+    profiles:
+      - dev
+    volumes:
+      - ./dbt_project:/usr/app/dbt_project
+    environment:
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
+      - STORAGE=${STORAGE}
+      - GOLD=${GOLD}
+      - ICE_ACCESS_KEY_ID=${ICE_ACCESS_KEY_ID}
+      - ICE_SECRET_ACCESS_KEY=${ICE_SECRET_ACCESS_KEY}
+    depends_on:
+      - clickhouse
+
+  jupyter_spark:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter_spark_dev
+    profiles:
+      - dev
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    restart: always
+
+volumes:
+  ch_data:
+  pg_data:

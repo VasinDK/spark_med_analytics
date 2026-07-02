@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/app/dbt_project
+
+RUN pip install --no-cache-dir dbt-clickhouse
+
+COPY ./dbt_project /usr/app/dbt_project
+
+CMD ["dbt", "--version"]

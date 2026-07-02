@@ -2,6 +2,7 @@ s3:
   storage: "https://storage.yandexcloud.net"
   bronze: &bronze_bucket "spark-medanalytics-dev-bronze"
   silver: &silver_bucket "spark-medanalytics-dev-silver"
+  gold: &gold_bucket "spark-medanalytics-dev-gold"
   visits_json: 
     bucket: *bronze_bucket
     path: "visits/"
@@ -13,6 +14,9 @@ s3:
     path: "professions.csv"
   silver_warehouse: 
     bucket: *silver_bucket
+    path: "warehouse/"
+  gold_warehouse: 
+    bucket: *gold_bucket
     path: "warehouse/"
   quarantine_path: 
     bucket: *silver_bucket
