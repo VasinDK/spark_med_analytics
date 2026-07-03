@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.bash import BashOperator
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.docker.operators.docker import DockerOperator
 
 default_args = {
     'owner': 'airflow',
@@ -19,7 +20,7 @@ with DAG(
     'my_first_airflow_dag',         # Уникальный ID графа в интерфейсе
     default_args=default_args,
     description='Простой тестовый DAG',
-    schedule=None,         # Запуск только вручную (или '@daily' для ежедневного)
+    schedule=None,                   # Запуск только вручную (или '@daily' для ежедневного)
     start_date=datetime(2026, 1, 1), # Дата, с которой граф начинает гипотетически существовать
     catchup=False,                  # Не догонять прошлые даты при старте
 ) as dag:
@@ -34,4 +35,11 @@ with DAG(
         python_callable=hello_python,
     )
 
-    task_1 >> task_2
+    task_3 = DockerOperator(
+        task_id='dbt_run',
+        image='ghcr.io/dbt-labs/dbt-postgres:latest', 
+        command='dbt run --profiles-dir /usr/app --project-dir /usr/app',
+        network_mode='airflow_default', 
+        auto_remove='success',
+    )
+    task_1 >> task_2 >> task_3

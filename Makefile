@@ -180,8 +180,7 @@ docker-up:
 		docker compose $(PROFILE_FLAG) up -d
 
 docker-down:
-# -v
-	docker compose --profile "*" down --remove-orphans -v
+	docker compose --profile "*" down --remove-orphans
 
 docker-restart: docker-down docker-up
 
@@ -205,7 +204,6 @@ dbt-docs:
 
 check:
 	@echo "Текущая среда: $(SPARK_ENV)"
-	@echo "Ищем файл: config/$(SPARK_ENV)_config.yaml"
 	@echo "Имя кластера из YAML: $(CLUSTER_NAME)"
 	@echo "GOLD из YAML: $(GOLD)"
 	
