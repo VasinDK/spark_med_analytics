@@ -45,7 +45,7 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_USER}:${AIR_DB_PASS}@airflow_metadata_db/${AIR_DB}
-      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.session,airflow.api.auth.backend.basic_auth'
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       STORAGE: ${STORAGE}
       GOLD: ${GOLD}
       ICE_ACCESS_KEY_ID: ${ICE_ACCESS_KEY_ID}
@@ -57,26 +57,6 @@ services:
       bash -c "airflow db migrate && 
       airflow standalone"
     restart: always
-
-  dbt:
-    build:
-      context: .
-      dockerfile: dockerfile.dbt
-    container_name: dbt_worker
-    profiles:
-      - dev
-    volumes:
-      - ./dbt_project:/usr/app/dbt_project
-    environment:
-      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
-      - CLICKHOUSE_DATABASE=${CLICKHOUSE_DATABASE}
-      - STORAGE=${STORAGE}
-      - GOLD=${GOLD}
-      - ICE_ACCESS_KEY_ID=${ICE_ACCESS_KEY_ID}
-      - ICE_SECRET_ACCESS_KEY=${ICE_SECRET_ACCESS_KEY}
-    depends_on:
-      - clickhouse
 
   jupyter_spark:
     image: jupyter/pyspark-notebook:spark-3.5.0
@@ -90,5 +70,4 @@ services:
     restart: always
 
 volumes:
-  ch_data:
   pg_data:

@@ -18,3 +18,19 @@ Airflow:
 - Запуск и контроль всех файлов jobs
 - Архивирование / удаление файлов после добавления  bronze_archive
 - Запуск ночью: jobs/optimize_tables_ice.py
+
+
+Заполняем:
+airflow_url в конфигах
+AIRFLOW_USER и AIRFLOW_PASS общий для дева и прода. Создаем в обоих airflow Web UI заполняем в cicd секретах
+Правельно создать отдельного пользователя для пайплайна. Для этого после запуска контейнера выполните команду в терминале вашей ВМ:
+docker exec -it airflow_orchestrator airflow users create \
+  --username github_ci \
+  --firstname GitHub \
+  --lastname Actions \
+  --role Admin \
+  --email ci@example.com \
+  --password ваш_надежный_пароль_для_ci
+
+dbt_worker_image_tag создаем в airflow Web UI
+SA_KEY в ключем. заполняем в cicd секретах. Ключ сервисного акаунта регистратора образов
