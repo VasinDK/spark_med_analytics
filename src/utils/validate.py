@@ -4,15 +4,11 @@ from pyspark.sql.functions import expr, array, when
 
 def validate(dq_config: dict):
     def _inner(df: DataFrame) -> DataFrame:
-        age_filter = "age >= {} AND age <= {}".format(dq_config['min_age'], dq_config['max_age'])
-        temp_filter = "temperature >= {} AND temperature <= {}".format(dq_config['min_temp'], dq_config['max_temp'])
-        
-        age_condition_expr = "NOT ({}) OR age IS NULL".format(age_filter)
-        temp_condition_expr = "NOT ({}) OR temperature IS NULL".format(temp_filter)
+        age_condition_expr = "age < {} OR age > {}".format(dq_config['min_age'], dq_config['max_age'])
+        temp_condition_expr = "temperature < {} OR temperature > {}".format(dq_config['min_temp'], dq_config['max_temp'])
             
         has_corrupt_col = "_corrupt_record" in df.columns
-        corrupt_condition = "NOT (_corrupt_record IS NULL)" if has_corrupt_col else "false"
-        
+        corrupt_condition = "_corrupt_record IS NOT NULL" if has_corrupt_col else "false"
 
         return df.withColumn(
             "errors",
@@ -24,4 +20,3 @@ def validate(dq_config: dict):
         )
 
     return _inner
-    

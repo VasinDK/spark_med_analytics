@@ -1,4 +1,4 @@
-name: CI/CD to Yandex Container Registry
+name: CI/CD to Container Registry
 
 on:
   push:

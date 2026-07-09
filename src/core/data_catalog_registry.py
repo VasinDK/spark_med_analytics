@@ -2,7 +2,7 @@ import os
 import yaml
 from typing import Dict, Any, List, Tuple
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField
+from pyspark.sql.types import StructType, StructField, _parse_datatype_string
 from src import constants
 from src.exceptions import ConfigurationError
 
@@ -64,7 +64,7 @@ class DataCatalogRegistry:
             col_name = field['name'].lower()
             norm_type = field['type'].lower()
 
-            spark_type_object = spark.sessionState.sqlParser().parseDataType(norm_type)
+            spark_type_object = _parse_datatype_string(norm_type)
             is_nullable = field.get('nullable', True)
             struct_fields.append(StructField(col_name, spark_type_object, is_nullable))
         

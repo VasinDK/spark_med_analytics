@@ -31,7 +31,7 @@ MERGE_KEYS_ERROR = "[ICEBERG ERROR] In the schemas configuration.yaml does not s
 QUALITY_METRICS_LOG = "[DATA INFO] === Quality Metrics: {} ==="
 INCREMENT_POINT = "[DATA INFO] The increment point (Watermark): {}"
 NO_NEW_CHANGED_DATA_GOLD = "[DATA INFO] There is no new or changed data to update the Gold layer"
-BROKEN_JSON_STRINGS = "[DATA WARN] Attention! {corrupt_count} broken JSON strings found"
+BROKEN_JSON_STRINGS = "[DATA WARN] Attention! {} broken JSON strings found"
 QUARANTINE_WRITE_ERROR = "[DATA ERROR] Failed to route invalid data to quarantine. {}"
 
 

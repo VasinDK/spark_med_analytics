@@ -10,19 +10,22 @@ from pyspark.sql.functions import current_timestamp, size, expr, array, when, su
 def finalize_validation(df_marked: DataFrame):
     logger = logging.getLogger(__name__)
 
+    df_marked = df_marked.withColumn("errors", expr("array_remove(errors, null)"))
+    
     has_corrupt_col = "_corrupt_record" in df_marked.columns
     corrupt_condition = "NOT (_corrupt_record IS NULL)" if has_corrupt_col else "false"
-
-    df_marked = df_marked.withColumn("errors", expr("array_remove(errors, null)"))
-    metrics_row = df_marked.agg(
+    
+    aggregated_data = df_marked.agg(
         _sum(when(size("errors") == 0, 1).otherwise(0)).alias("valid_rows"),
         _sum(when(size("errors") > 0, 1).otherwise(0)).alias("invalid_rows"),
         _sum(when(expr(corrupt_condition), 1).otherwise(0)).alias("corrupt_rows")
-    ).collect()[0]
+    ).collect()
 
-    valid_count = metrics_row["valid_rows"]
-    invalid_count = metrics_row["invalid_rows"]
-    corrupt_json_count = metrics_row["corrupt_rows"]
+    metrics_row = aggregated_data[0]
+
+    valid_count = metrics_row["valid_rows"] or 0
+    invalid_count = metrics_row["invalid_rows"] or 0
+    corrupt_json_count = metrics_row["corrupt_rows"] or 0
     total_count = valid_count + invalid_count
     
     if total_count == 0:
