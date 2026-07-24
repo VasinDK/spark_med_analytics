@@ -6,6 +6,9 @@ s3:
   visits_json: 
     bucket: *bronze_bucket
     path: "visits/"
+  visits_archive:
+    bucket: *bronze_bucket
+    path: "archive/visits/"
   departments_csv: 
     bucket: *bronze_bucket
     path: "departments.csv"
@@ -33,21 +36,51 @@ log_level:
   spark_sql: "WARN"
 
 infrastructure:
-  cluster_name: "dataproc441"
+  cluster_name: "sparkmedanalytics-cluster"
   code_bucket: "scripts-spark-med"
   whl_file: "sparkmedanalytics-0.1.0-py3-none-any.whl"
   dependencies: "dependencies.zip"
-  schemas: schemas.yaml
-  registry: cr.yandex
+  schemas: "schemas.yaml"
+  registry: "cr.yandex"
   registry_id: "crp7u8e412lmno90p"
-  image_name: dbt_project_img
-  airflow_url: "http://84.201.128.45:8080"
+  image_name: "dbt_project_img"
+  metrics_path: "metrics"
+
+scripts:
+  load_ref_data: "load_ref_data.py"
+  process_visits: "process_visits.py"
+  schema_sync_ice: "schema_sync_ice.py"
+  bronze_to_silver: "bronze_to_silver.py"
+  silver_to_gold: "silver_to_gold.py"
+
+dataproc:
+  zone: "ru-central1-a"
+  subnet_id: "e9b1234567890abcdefg"
+  service_account_id: "aje1234567890abcdefg"
+  master_cores: 4
+  master_memory: 16
+  worker_cores: 8
+  worker_memory: 32
+  worker_count: 3
+  disk_size_master: 40
+  disk_size_worker: 40
+  disk_type_id_master: "network-ssd"
+  disk_type_id_worker: "network-ssd"
+
+airflow:
+  url: "http://84.201.128.45:8080"
+  yc_conn_id: yandex_cloud_default
+  aws_conn_id: "yandex_cloud_s3"
+  sensor:
+    poke_interval: 10
+    timeout: 5
+    mode: "poke"
+    soft_fail: true
 
 buffer_days: 2
 
 packages: >
   org.apache.iceberg:iceberg-spark-runtime-3.3_2.12:1.4.3,
   org.apache.iceberg:iceberg-aws-bundle:1.4.3
-packages_gold: >
-  com.clickhouse.spark:clickhouse-spark-runtime-3.3_2.12:0.7.3
+
 repositories: "https://maven.org"

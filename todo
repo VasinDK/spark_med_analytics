@@ -11,14 +11,12 @@ UInt16 на стороне ClickHouse.
 Результат: Готовый GitHub-репозиторий с кодом, архитектурной схемой в README и примерами сверхбыстрых SQL-запросов.
 
 - Разные витрины 
-- Продумать вопрос обновления данных  
-- Airflow запуск отчистка и др выяснить
 
 Airflow:
-- Запуск и контроль всех файлов jobs
-- Архивирование / удаление файлов после добавления  bronze_archive
-- Запуск ночью: jobs/optimize_tables_ice.py
-
+8. Airflow раскидать на два сервиса в докере. разделить на airflow-webserver и airflow-scheduler 
+  (запустив их от одного образа, но с разными командами webserver и scheduler)
+9. импорт библиотек airflow и других из даг
+10. Проработать Makefile
 
 Заполняем:
 airflow_url в конфигах
@@ -34,3 +32,45 @@ docker exec -it airflow_orchestrator airflow users create \
 
 dbt_worker_image_tag создаем в airflow Web UI
 SA_KEY в ключем. заполняем в cicd секретах. Ключ сервисного акаунта регистратора образов
+
+
+Пересмотреть:
+- вынести в cicd запуск миграций и справочников
+- разные витрины данных
+- тесты вместо load_s3_yaml_config сделать get_config_json
+- тест get_spark_session сместо spark, config = get_spark_session(sys.argv) сделать spark = get_spark_session(sys.argv)
+- добавить в get_config_json если нет аргументов идти в s3
+- удалеить тесты get_s3_url_schemas
+- MetricsValidate поменял файл дописал методы
+- StatsTableSync поменял файл
+- Вынести 5% брака в конфиг из констант
+- Разобраться с параметрами под @task
+- актуализировать cicd
+- актуализировтаь dbt
+- optimize_table 
+
+optimize_table = DataprocCreatePysparkJobOperator(
+        task_id='optimize_table',
+        yc_conn_id=configs['cfg']['airflow']['yc_conn_id'],
+        cluster_id=create_cluster.output,
+        name='{{ task.task_id }}',
+        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['optimize_table'] }}",
+        py_files=[
+            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
+            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}"
+        ],
+        properties={
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.type": "hadoop",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['gold_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['gold_warehouse']['path'] }}",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.path-style-access": "true",
+            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
+            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}"
+        },
+        packages=["{{ configs['cfg']['packages'] }}"],
+        repositories=["{{ configs['cfg']['repositories'] }}"],
+        args=["--config_json", "{{ configs | tojson }}"]
+    )

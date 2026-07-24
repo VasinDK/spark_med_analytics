@@ -56,7 +56,7 @@ jobs:
           IMAGE_NAME=$(yq eval '.infrastructure.image_name' $CONFIG_FILE)
           STORAGE=$(yq eval '.s3.storage' $CONFIG_FILE)
           GOLD=$(yq '.s3.gold_warehouse | .bucket + "/" + .path' $CONFIG_FILE)
-          AIRFLOW_URL_FROM_YAML=$(yq eval '.infrastructure.airflow_url' $CONFIG_FILE)
+          AIRFLOW_URL_FROM_YAML=$(yq eval '.airflow.url' $CONFIG_FILE)
 
           echo "MAIN_REGISTRY=$MAIN_REGISTRY" >> $GITHUB_ENV
           echo "REGISTRY_ID=$REGISTRY_ID" >> $GITHUB_ENV

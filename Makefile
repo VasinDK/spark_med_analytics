@@ -79,7 +79,7 @@ lint:
 build: 
 	-uv build --wheel && \
 	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE)
-# 	-yc storage s3 cp jobs/load_references.py s3://$(CODE_BUCKET)/load_references.py
+# 	-yc storage s3 cp jobs/load_ref_data.py s3://$(CODE_BUCKET)/load_ref_data.py
 	-yc storage s3 cp jobs/bronze_to_silver.py s3://$(CODE_BUCKET)/bronze_to_silver.py	
 	-yc storage s3 cp config/${SPARK_ENV}_config.yaml s3://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml
 	-yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/10_patient_visits_1m.json
@@ -105,13 +105,13 @@ deps:
 	yc storage s3 cp dist/dependencies.zip s3://$(CODE_BUCKET)/dependencies.zip && \
 	yc storage s3 cp config/schemas.yaml s3://$(CODE_BUCKET)/$(SCHEMAS_TABLES)
 
-# Обновление справочников и зависимостей
+# ! Обновление справочников и зависимостей
 refs-dev: build
 #  deps
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \
 		--name references \
-		--main-python-file-uri s3a://$(CODE_BUCKET)/load_references.py \
+		--main-python-file-uri s3a://$(CODE_BUCKET)/load_ref_data.py \
 		--python-file-uris s3a://$(CODE_BUCKET)/$(WHL_FILE),s3a://${CODE_BUCKET}/$(DEPENDENCIES) \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT)=org.apache.iceberg.spark.SparkCatalog" \
 		--properties "spark.sql.catalog.$(DB_SILVER_CAT).type=hadoop" \
@@ -126,7 +126,7 @@ refs-dev: build
 		--packages $(PACKAGES) \
 		--args "s3a://$(CODE_BUCKET)/$(SPARK_ENV)_config.yaml" \
 		--async=false
-
+# !
 silver-dev: build
 	yc dataproc job create-pyspark \
 		--cluster-name $(CLUSTER_NAME) \

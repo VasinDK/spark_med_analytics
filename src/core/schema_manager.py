@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from pyspark.sql import SparkSession
-from src.utils.metrics import StatsTableSync
+from src.utils.stats_table_sync import StatsTableSync
 from src.exceptions import ColumnNotNullError, SyncTableError
 from src import constants
 from src.core.data_catalog_registry import DataCatalogRegistry
@@ -100,12 +100,6 @@ def sync_single_table(
     yaml_fields = registry.get_fields(layer, table_key)
     sync_table_columns(spark, target_address, yaml_fields, stats)
     stats.tables_checked += 1
-
-def get_s3_url_schemas(config: dict) -> str:
-    code_bucket = f"{config['infrastructure']['code_bucket']}".strip("/")
-    schemas = f"{config['infrastructure']['schemas']}".strip("/")
-    
-    return f"s3a://{code_bucket}/{schemas}"
 
 def getSparkType(type_raw: str):
     try:

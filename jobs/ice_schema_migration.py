@@ -1,20 +1,20 @@
-import sys
 import logging
 from src.core.data_catalog_registry import DataCatalogRegistry
 from src import constants
-from src.utils.metrics import StatsTableSync
+from src.utils.stats_table_sync import StatsTableSync
 from src.logging_config import setup_logging
 from src.decorators import monitor_job
 from src.core.session import get_spark_session
-from src.core.schema_manager import create_database, sync_single_table, get_s3_url_schemas
+from src.core.schema_manager import create_database, sync_single_table
 from pyspark.sql import SparkSession
 from src.utils.errors import handle_job_exception
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
 @monitor_job
-def run_schema_sync_ice(spark: SparkSession, config: dict, layer: str):
-    registry = DataCatalogRegistry.from_s3_yaml_file(spark, get_s3_url_schemas(config))
+def run_ice_schema_migration(spark: SparkSession, layer: str):
+    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()['schemas'])
     stats = StatsTableSync()
     create_database(spark, registry.get_catalog_schema(layer))
 
@@ -28,10 +28,11 @@ def run_schema_sync_ice(spark: SparkSession, config: dict, layer: str):
     logger.info("=" * 30)
 
 if __name__ == "__main__":
-    spark, config = get_spark_session(sys.argv)
+    config = get_config()['cfg']
+    setup_logging()
+    spark = get_spark_session(config)
     try:
-        setup_logging()
-        run_schema_sync_ice(spark, config, 'silver')
-        run_schema_sync_ice(spark, config, 'gold')
+        run_ice_schema_migration(spark, 'silver')
+        run_ice_schema_migration(spark, 'gold')
     except Exception as e:
         handle_job_exception(spark, e)

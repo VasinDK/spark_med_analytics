@@ -1,4 +1,4 @@
-from src.utils.metrics import MetricsValidate, StatsTableSync
+from src.utils.metrics_validate import MetricsValidate, StatsTableSync
 
 
 class TestMetricsValidate:

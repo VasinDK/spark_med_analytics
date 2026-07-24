@@ -13,9 +13,8 @@ class DataCatalogRegistry:
         self._databases = self._config.get("databases", {})
 
     @classmethod
-    def from_s3_yaml_file(cls, spark: SparkSession, s3_uri: str) -> "DataCatalogRegistry":
-        yaml_text = "\n".join(spark.sparkContext.textFile(s3_uri).collect())
-        return cls(yaml.safe_load(yaml_text))
+    def from_s3_yaml_file(cls, schemas: dict) -> "DataCatalogRegistry":
+        return cls(schemas)
 
     def _get_layer_meta(self, layer: str) -> Dict[str, Any]:
         if layer not in self._databases:

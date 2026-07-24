@@ -1,11 +1,15 @@
-import os
-import yaml
-from dotenv import load_dotenv
+import argparse
+import json
+from functools import lru_cache
+from src.exceptions import ConfigurationNotFoundError
 
-load_dotenv()
-
-spark_env = os.getenv("SPARK_ENV", "dev")
-
-def load_s3_yaml_config(spark, s3_uri) -> dict:
-    yaml_text = "\n".join(spark.sparkContext.textFile(s3_uri).collect())
-    return yaml.safe_load(yaml_text)
+@lru_cache(maxsize=1)
+def get_config():
+    try:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--config_json", required=True)
+        args = parser.parse_args()
+   
+        return json.loads(args.config_json)
+    except json.JSONDecodeError as e:
+        raise ConfigurationNotFoundError()

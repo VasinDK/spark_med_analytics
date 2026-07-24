@@ -9,7 +9,7 @@ from src.core.schema_manager import (
     getSparkType,
 )
 from src.exceptions import ColumnNotNullError, SyncTableError
-from src.utils.metrics import StatsTableSync
+from src.utils.metrics_validate import StatsTableSync
 
 
 class TestCreateDatabase:

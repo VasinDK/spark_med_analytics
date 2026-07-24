@@ -1,25 +1,24 @@
-import sys
 import logging
 from src.logging_config import setup_logging
 from src.decorators import monitor_job
 from src.core.session import get_spark_session
 from pyspark.sql.functions import collect_list, col, current_timestamp, broadcast
 from src.core.data_catalog_registry import DataCatalogRegistry
-from src.core.schema_manager import get_s3_url_schemas
 from src.utils.db import get_last_date
 from src.core.writer import merge_table_from_view
 from src import constants
 from src.exceptions import NoDataGoldError
 from pyspark.sql import SparkSession
 from src.utils.errors import handle_job_exception
+from src.config import get_config
 
 TEMP_GOLD_DATA = "temp_gold_data"
 
 logger = logging.getLogger(__name__)
 
 @monitor_job
-def run_etl_gold(spark: SparkSession, config: dict):
-    registry = DataCatalogRegistry.from_s3_yaml_file(spark, get_s3_url_schemas(config))
+def run_etl_gold(spark: SparkSession):
+    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()['schemas'])
     gold_table_address = registry.get_table_address("gold", "visits")
     last_visit = get_last_date(spark.read.table(gold_table_address))
     watermark_date = last_visit if last_visit else "1970-01-01"
@@ -91,9 +90,10 @@ def run_etl_gold(spark: SparkSession, config: dict):
 
 
 if __name__ == "__main__":
-    spark, config = get_spark_session(sys.argv)
+    config = get_config()['cfg']
+    setup_logging()
+    spark = get_spark_session(config)
     try:
-        setup_logging()
         run_etl_gold(spark, config)
     except Exception as e:
         handle_job_exception(spark, e)

@@ -8,12 +8,11 @@ wheels/
 .env
 data/
 src/sparkmedanalytics.egg-info
-# Делаем исключение для легких справочников
+Makefile_backup
+
 !data/departments.csv
 !data/professions.csv
 todo.txt
 
-
-# Virtual environments
 .venv
 .vscode
