@@ -7,6 +7,28 @@ from pyspark.sql.types import (
 from src.transforms import cast_bronze, cast_visit_date, add_id, add_bmi
 from src.core.data_catalog_registry import DataCatalogRegistry
 
+class TestCastBronze:
+    def _full_bronze_df(self, spark_session, overrides: dict = None):
+        """Создаёт DataFrame со всеми полями bronze схемы для cast_bronze"""
+        schema = StructType([
+            StructField("id", StringType(), True),
+            StructField("visit_date", StringType(), True),
+            StructField("age", StringType(), True),
+            StructField("temperature", StringType(), True),
+            StructField("snils", StringType(), True),
+            StructField("disease_code", StringType(), True),
+            StructField("height", StringType(), True),
+            StructField("weight", StringType(), True),
+            StructField("symptoms_code", StringType(), True),
+            StructField("chronic_diseases", StringType(), True),
+            StructField("_corrupt_record", StringType(), True),
+        ])
+        default = ("1", "2024-01-15 10:30:00", "35", "36.6", "123-456-789 00", "J00", "175", "75.0", '["R05","R06"]', '["I10"]', None)
+        if overrides:
+            default = tuple(overrides.get(f.name, default[i]) for i, f in enumerate(schema.fields))
+        data = [default]
+        return spark_session.createDataFrame(data, schema)
+
 class TestCastVisitDate:
     def test_null_date(self, spark_session):
         schema = StructType([StructField("visit_date", StringType(), True)])

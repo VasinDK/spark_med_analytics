@@ -77,18 +77,17 @@ class TestDataCatalogRegistry:
         assert "name" in field_names
 
     def test_from_s3_yaml_file(self):
-        mock_spark = MagicMock()
-        mock_rdd = MagicMock()
-        mock_spark.sparkContext.textFile.return_value = mock_rdd
-        mock_rdd.collect.return_value = [
-            "databases:",
-            "  test:",
-            "    catalog: test_catalog",
-            "    schema: test_schema",
-            "    tables: {}",
-        ]
+        schemas = {
+            "databases": {
+                "test": {
+                    "catalog": "test_catalog",
+                    "schema": "test_schema",
+                    "tables": {},
+                }
+            }
+        }
 
-        registry = DataCatalogRegistry.from_s3_yaml_file(mock_spark, "s3a://bucket/schemas.yaml")
+        registry = DataCatalogRegistry.from_s3_yaml_file(schemas)
         assert registry is not None
         catalog, schema = registry.get_catalog_schema("test")
         assert catalog == "test_catalog"

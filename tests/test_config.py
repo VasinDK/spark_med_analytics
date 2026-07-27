@@ -1,39 +1,43 @@
-import os
+import json
+import sys
 import pytest
 from unittest.mock import MagicMock, patch
-from src.config import load_s3_yaml_config
+from src.config import get_config
+from src.exceptions import ConfigurationNotFoundError
 
 
-class TestLoadS3YamlConfig:
-    def test_load_s3_yaml_config_success(self):
-        mock_spark = MagicMock()
-        mock_rdd = MagicMock()
-        mock_spark.sparkContext.textFile.return_value = mock_rdd
-        mock_rdd.collect.return_value = [
-            "s3:",
-            "  bucket: test-bucket",
-            "  key: test-key",
-        ]
+@pytest.fixture(autouse=True)
+def clear_config_cache():
+    """Очищаем кеш get_config перед каждым тестом"""
+    get_config.cache_clear()
+    yield
 
-        result = load_s3_yaml_config(mock_spark, "s3a://bucket/config.yaml")
 
-        mock_spark.sparkContext.textFile.assert_called_once_with("s3a://bucket/config.yaml")
-        assert result == {"s3": {"bucket": "test-bucket", "key": "test-key"}}
+class TestGetConfig:
+    def test_get_config_success(self):
+        test_config = {"key": "value", "number": 42}
+        test_args = ["script.py", "--config_json", json.dumps(test_config)]
 
-    def test_load_s3_yaml_config_empty(self):
-        mock_spark = MagicMock()
-        mock_rdd = MagicMock()
-        mock_spark.sparkContext.textFile.return_value = mock_rdd
-        mock_rdd.collect.return_value = []
+        with patch.object(sys, "argv", test_args):
+            result = get_config()
 
-        result = load_s3_yaml_config(mock_spark, "s3a://bucket/config.yaml")
-        assert result is None
+        assert result == test_config
 
-    def test_load_s3_yaml_config_invalid_yaml(self):
-        mock_spark = MagicMock()
-        mock_rdd = MagicMock()
-        mock_spark.sparkContext.textFile.return_value = mock_rdd
-        mock_rdd.collect.return_value = ["invalid: yaml: ["]
+    def test_get_config_invalid_json(self):
+        test_args = ["script.py", "--config_json", "not valid json"]
 
-        with pytest.raises(Exception):
-            load_s3_yaml_config(mock_spark, "s3a://bucket/config.yaml")
+        with patch.object(sys, "argv", test_args):
+            with pytest.raises(ConfigurationNotFoundError):
+                get_config()
+
+    def test_get_config_cached(self):
+        """Проверяем, что результат кешируется (lru_cache)"""
+        test_config = {"cached": True}
+        test_args = ["script.py", "--config_json", json.dumps(test_config)]
+
+        with patch.object(sys, "argv", test_args):
+            result1 = get_config()
+            result2 = get_config()
+
+        assert result1 is result2  # один и тот же объект из кеша
+        assert result1 == test_config

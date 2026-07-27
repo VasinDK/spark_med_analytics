@@ -5,11 +5,10 @@ from src.core.schema_manager import (
     create_table_ice,
     sync_table_columns,
     sync_single_table,
-    get_s3_url_schemas,
     getSparkType,
 )
 from src.exceptions import ColumnNotNullError, SyncTableError
-from src.utils.metrics_validate import StatsTableSync
+from src.utils.stats_table_sync import StatsTableSync
 
 
 class TestCreateDatabase:
@@ -175,28 +174,6 @@ class TestSyncSingleTable:
 
         assert stats.tables_checked == 1
         assert stats.tables_created == 0
-
-
-class TestGetS3UrlSchemas:
-    def test_get_s3_url_schemas(self):
-        config = {
-            "infrastructure": {
-                "code_bucket": "scripts-bucket",
-                "schemas": "config/schemas.yaml",
-            }
-        }
-        url = get_s3_url_schemas(config)
-        assert url == "s3a://scripts-bucket/config/schemas.yaml"
-
-    def test_get_s3_url_schemas_with_slashes(self):
-        config = {
-            "infrastructure": {
-                "code_bucket": "/scripts-bucket/",
-                "schemas": "/config/schemas.yaml",
-            }
-        }
-        url = get_s3_url_schemas(config)
-        assert url == "s3a://scripts-bucket/config/schemas.yaml"
 
 
 class TestGetSparkType:

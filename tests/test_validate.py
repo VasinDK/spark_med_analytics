@@ -20,7 +20,8 @@ class TestValidate:
 
         errors = result_df.select("errors").collect()
         for row in errors:
-            assert row["errors"] == [None, None, None] or row["errors"] == []
+            # Для валидных данных все условия when возвращают null
+            assert all(e is None for e in row["errors"])
 
     def test_invalid_age(self, spark_session, sample_dq_config):
         schema = StructType([
