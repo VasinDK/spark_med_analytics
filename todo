@@ -13,10 +13,15 @@ UInt16 на стороне ClickHouse.
 - Разные витрины 
 
 Airflow:
-8. Airflow раскидать на два сервиса в докере. разделить на airflow-webserver и airflow-scheduler 
-  (запустив их от одного образа, но с разными командами webserver и scheduler)
-9. импорт библиотек airflow и других из даг
-10. Проработать Makefile
+- Проработать Makefile
+- тесты вместо load_s3_yaml_config сделать get_config_json
+- тест get_spark_session сместо spark, config = get_spark_session(sys.argv) сделать spark = get_spark_session(sys.argv)
+- удалеить тесты get_s3_url_schemas
+- StatsTableSync поменял файл
+- MetricsValidate поменял файл дописал методы
+- Разобраться с параметрами под @task
+- актуализировтаь dbt
+- актуализировать cicd
 
 Заполняем:
 airflow_url в конфигах
@@ -33,20 +38,19 @@ docker exec -it airflow_orchestrator airflow users create \
 dbt_worker_image_tag создаем в airflow Web UI
 SA_KEY в ключем. заполняем в cicd секретах. Ключ сервисного акаунта регистратора образов
 
+Дополнительно изучить:
+стриминг, 
+greenplum, 
+sql, 
+python,
+Grafana (Для Airflow и ClickHouse включаются специальные модули (Prometheus Exporters), которые отдают метрики. Prometheus их забирает, а Grafana красиво рисует графики и отправляет алерты в Telegram/Slack, если ClickHouse упал или диск заполнился на 90%.),
+Great Expectations / Elementary / Monte Carlo: Эти инструменты интегрируются прямо в ваш dbt-пайплайн. Например, Elementary собирает метрики тестов dbt, строит по ним отчеты и может слать алерты в Telegram, если данные «поплыли».
+
 
 Пересмотреть:
 - вынести в cicd запуск миграций и справочников
 - разные витрины данных
-- тесты вместо load_s3_yaml_config сделать get_config_json
-- тест get_spark_session сместо spark, config = get_spark_session(sys.argv) сделать spark = get_spark_session(sys.argv)
 - добавить в get_config_json если нет аргументов идти в s3
-- удалеить тесты get_s3_url_schemas
-- MetricsValidate поменял файл дописал методы
-- StatsTableSync поменял файл
-- Вынести 5% брака в конфиг из констант
-- Разобраться с параметрами под @task
-- актуализировать cicd
-- актуализировтаь dbt
 - optimize_table 
 
 optimize_table = DataprocCreatePysparkJobOperator(

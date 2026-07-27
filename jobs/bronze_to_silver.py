@@ -11,7 +11,7 @@ from src.utils.action_context import ActionContext
 from pyspark import StorageLevel
 from src.config import get_config
 from src.exceptions import CriticalDataQualityError
-from src.constants import CRITICAL_ERROR_PERCENT_DETAILS, MAX_ERROR_PERCENT
+from src.constants import CRITICAL_ERROR_PERCENT_DETAILS
 
 TEMP_SILVER_DATA = "temp_silver_data"
 
@@ -51,8 +51,8 @@ def run_etl_silver(spark: SparkSession, full_config: dict):
             df_bronze.unpersist()
             return
         
-        if metrics.error_percent > MAX_ERROR_PERCENT:
-            error_msg = CRITICAL_ERROR_PERCENT_DETAILS.format(metrics.error_percent, MAX_ERROR_PERCENT)
+        if metrics.error_percent > config['dq_rule']['percent_marriage']:
+            error_msg = CRITICAL_ERROR_PERCENT_DETAILS.format(metrics.error_percent, config['dq_rule']['percent_marriage'])
             raise CriticalDataQualityError(error_msg)
         
         df_silver = (df_clean

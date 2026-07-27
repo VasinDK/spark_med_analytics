@@ -17,35 +17,17 @@ services:
         hard: 262144
     restart: always
   
-  postgres:
-    image: postgres:15-alpine
-    container_name: airflow_metadata_db
-    environment:
-      POSTGRES_USER: ${AIR_DB_USER}
-      POSTGRES_PASSWORD: ${AIR_DB_PASS}
-      POSTGRES_DB: ${AIR_DB}
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AIR_DB_USER} -d ${AIR_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: always
-
-# Раскидать на два сервисе
-  airflow:
-    image: apache/airflow:3.1.7
-    container_name: airflow_orchestrator
+  x-airflow-common: &airflow-common
+    build:
+      context: .
+      dockerfile: dockerfile.airflow
     user: "${AIR_UID}:0"
-    ports:
-      - "8080:8080"
     volumes:
       - ./dags:/opt/airflow/dags
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_USER}:${AIR_DB_PASS}@airflow_metadata_db/${AIR_DB}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_ADMIN}:${AIR_DB_PASS}@postgres-airflow/${AIR_DB}
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
       STORAGE: ${STORAGE}
       GOLD: ${GOLD}
@@ -61,17 +43,97 @@ services:
       CODE_BUCKET: ${CODE_BUCKET}
       SPARK_ENV: ${SPARK_ENV}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
-      
+
+  postgres-airflow:
+    image: postgres:15-alpine
+    container_name: airflow_metadata_db
+    environment:
+      POSTGRES_USER: ${AIR_DB_ADMIN}
+      POSTGRES_PASSWORD: ${AIR_DB_PASS}
+      POSTGRES_DB: ${AIR_DB}
+    volumes:
+      - pg_data_airflow:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIR_DB_ADMIN} -d ${AIR_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow_init
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       bash -c "airflow db migrate && 
-      airflow standalone"
+      airflow users create --username ${AIR_DB_ADMIN} --firstname Admin --lastname Admin --role Admin --email ${AIR_DB_EMAIL} --password ${AIR_DB_PASS}"
+    restart: on-failure
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow_webserver
+    ports:
+      - "8080:8080"
+    command: airflow webserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    restart: always
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow_scheduler
+    command: airflow scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully 
+    restart: always
+
+  postgres-superset:
+    image: postgres:15-alpine
+    container_name: superset_metadata_db
+    environment:
+      POSTGRES_USER: ${SUPERSET_USER}
+      POSTGRES_PASSWORD: ${SUPERSET_PASSWORD}
+      POSTGRES_DB: ${SUPERSET_DB}
+    volumes:
+      - pg_data_superset:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUPERSET_USER} -d ${SUPERSET_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  superset:
+    image: apache/superset:4.1.1
+    container_name: superset_bi
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - TALISMAN_CONFIG={"content_security_policy":None} 
+      - ADDITIONAL_REQUIREMENTS=clickhouse-connect>=0.7.0 psycopg2-binary>=2.9.0
+      - SUPERSET_DB_URI=postgresql+psycopg2://${SUPERSET_USER}:${SUPERSET_PASSWORD}@postgres-superset/${SUPERSET_DB}
+    command: >
+      bash -c "
+      superset db upgrade &&
+      superset fab create-admin --username ${SUPERSET_USER} --firstname Admin --lastname Admin --email ${SUPERSET_EMAIL} --password ${SUPERSET_PASSWORD} &&
+      superset init &&
+      superset run -p 8088 -h 0.0.0.0 --with-threads --reload"
+    depends_on:
+      clickhouse:
+        condition: service_started
     restart: always
 
   jupyter_spark:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    image: jupyter/pyspark-notebook:spark-3.3.2
     container_name: jupyter_spark_dev
     profiles:
       - dev
@@ -82,4 +144,5 @@ services:
     restart: always
 
 volumes:
-  pg_data:
+  pg_data_airflow:
+  pg_data_superset:
