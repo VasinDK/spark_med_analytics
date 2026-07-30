@@ -327,12 +327,7 @@ def dwh_core_elthub():
 
     dbt_clickhouse = DockerOperator(
         task_id='dbt_clickhouse',
-        image=(
-            "{{ configs['cfg']['infrastructure']['registry'] }}/"
-            "{{ configs['cfg']['infrastructure']['registry_id'] }}/"
-            "{{ configs['cfg']['infrastructure']['image_name'] }}:"
-            "{{ var.value.dbt_worker_image_tag | default('latest') }}"
-        ),
+        image='dbt-worker:latest',
         api_version='auto',
         auto_remove=True,
         command='dbt build --profiles-dir . --target base',

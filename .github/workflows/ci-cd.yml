@@ -6,7 +6,7 @@ on:
 
 jobs:
   python-testing:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,92 +27,20 @@ jobs:
         run: |
           pytest tests/
 
-  build-and-push:
+  deploy-to-vm:
     needs: python-testing
-    runs-on: ubuntu-latest
-    
-    env:
-      AIRFLOW_USER: "${{ secrets.AIRFLOW_USER }}"
-      AIRFLOW_PASS: "${{ secrets.AIRFLOW_PASS }}"
-
-
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Load config variables from YAML
-        id: read_config
-        run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            CONFIG_FILE="config/prod_config.yaml"
-          else
-            CONFIG_FILE="config/dev_config.yaml"
-          fi
-          
-          echo "Using configuration file: $CONFIG_FILE"
-          
-          MAIN_REGISTRY=$(yq eval '.infrastructure.registry' $CONFIG_FILE)
-          REGISTRY_ID=$(yq eval '.infrastructure.registry_id' $CONFIG_FILE)
-          IMAGE_NAME=$(yq eval '.infrastructure.image_name' $CONFIG_FILE)
-          STORAGE=$(yq eval '.s3.storage' $CONFIG_FILE)
-          GOLD=$(yq '.s3.gold_warehouse | .bucket + "/" + .path' $CONFIG_FILE)
-          AIRFLOW_URL_FROM_YAML=$(yq eval '.airflow.url' $CONFIG_FILE)
-
-          echo "MAIN_REGISTRY=$MAIN_REGISTRY" >> $GITHUB_ENV
-          echo "REGISTRY_ID=$REGISTRY_ID" >> $GITHUB_ENV
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
-          echo "STORAGE=$STORAGE" >> $GITHUB_ENV
-          echo "GOLD=$GOLD" >> $GITHUB_ENV
-          echo "AIRFLOW_URL=$AIRFLOW_URL_FROM_YAML" >> $GITHUB_ENV
-
-          echo "--------------------------------------------------------"
-          echo "Final tags for publishing in the cloud:"
-          echo "Tag with SHA: $MAIN_REGISTRY/$REGISTRY_ID/$IMAGE_NAME:${{ github.sha }}"
-          echo "Tag latest: $MAIN_REGISTRY/$REGISTRY_ID/$IMAGE_NAME:latest"
-          echo "--------------------------------------------------------"
-
-      - name: Build Local Docker Image
-        run: |
-          docker build \
-            -t ${{ env.IMAGE_NAME }}:local \
-            -f dockerfile.dbt .
-
-      - name: Login to Yandex Container Registry
-        uses: docker/login-action@v3
+      - name: Deploy and Build Image via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          registry: ${{ env.MAIN_REGISTRY }}
-          username: json_key
-          password: ${{ secrets.SA_KEY }}
-
-      - name: Tag and Push Docker Images to Registry
-        run: |
-          docker tag ${{ env.IMAGE_NAME }}:local ${{ env.MAIN_REGISTRY }}/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker tag ${{ env.IMAGE_NAME }}:local ${{ env.MAIN_REGISTRY }}/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
-          
-          docker push ${{ env.MAIN_REGISTRY }}/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.MAIN_REGISTRY }}/${{ env.REGISTRY_ID }}/${{ env.IMAGE_NAME }}:latest
-
-      - name: Update Image Tag in Airflow
-        run: |
-          if [ -z "${{ env.AIRFLOW_URL }}" ] || [ -z "$AIRFLOW_USER" ] || [ -z "$AIRFLOW_PASS" ]; then
-            echo "::warning:: Skipping the Airflow update: One of the variables is missing (AIRFLOW_URL, AIRFLOW_USER or AIRFLOW_PASS)"
-            exit 0
-          fi
-
-          echo "Sending an update request to Airflow: ${{ env.AIRFLOW_URL }}"
-
-          RESPONSE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "${{ env.AIRFLOW_URL }}/api/v1/variables/dbt_worker_image_tag" \
-            -u "$AIRFLOW_USER:$AIRFLOW_PASS" \
-            -H "Content-Type: application/json" \
-            -d "{\"key\": \"dbt_worker_image_tag\", \"value\": \"${{ github.sha }}\"}")
-
-          if [ "$RESPONSE_STATUS" -eq 200 ] || [ "$RESPONSE_STATUS" -eq 204 ]; then
-            echo "Successfully: The image tag in Airflow has been updated to ${{ github.sha }}"
-          elif [ "$RESPONSE_STATUS" -eq 404 ]; then
-            echo "::error:: Error: The 'dbt_worker_image_tag' variable was not found in your Airflow."
-            echo "::notice:: Please go to the Web UI Airflow (Admin -> Variables) and create a variable named 'dbt_worker_image_tag' manually."
-            exit 1
-          else
-            echo "::error:: Failed to update Airflow. The server returned the HTTP code: $RESPONSE_STATUS"
-            exit 1
-          fi
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /home/${{ secrets.SERVER_USER }}/sparkmedanalytics
+            
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+            
+            docker build -t dbt-worker:latest -f dockerfile.dbt .
