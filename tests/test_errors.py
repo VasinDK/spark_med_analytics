@@ -17,7 +17,7 @@ class TestHandleJobException:
     def test_analysis_exception(self):
         mock_spark = MagicMock()
         from pyspark.sql.utils import AnalysisException
-        exc = AnalysisException("Table not found")
+        exc = AnalysisException("Table not found", "")
 
         with patch.object(sys, "exit") as mock_exit:
             handle_job_exception(mock_spark, exc)

@@ -9,8 +9,8 @@ from pyspark.sql.types import (
 )
 from src.core.data_catalog_registry import DataCatalogRegistry
 
-os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-17-openjdk-amd64"
-os.environ["PATH"] = f"/usr/lib/jvm/java-17-openjdk-amd64/bin:{os.environ.get('PATH', '')}"
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-11-openjdk-amd64"
+os.environ["PATH"] = f"/usr/lib/jvm/java-11-openjdk-amd64/bin:{os.environ.get('PATH', '')}"
 
 SAMPLE_SCHEMAS_YAML = {
     "version": "1.0",
@@ -131,10 +131,10 @@ SAMPLE_SCHEMAS_YAML = {
 def spark_session():
     spark = (
         SparkSession.builder
-        .master("local[1]")
-        .appName("test")
+        .master("local[2]")
+        .appName("unit-testing")
         .config("spark.sql.session.timeZone", "UTC")
-        .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+        .config("spark.sql.shuffle.partitions", "2")
         .config("spark.ui.enabled", "false")
         .getOrCreate()
     )

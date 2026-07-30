@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 py4j==0.10.9.9
     # via pyspark
-pyspark==4.2.0
+pyspark==3.3.2
     # via sparkmedanalytics (pyproject.toml)
 python-dotenv==1.2.2
     # via sparkmedanalytics (pyproject.toml)

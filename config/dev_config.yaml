@@ -42,9 +42,6 @@ infrastructure:
   whl_file: "sparkmedanalytics-0.1.0-py3-none-any.whl"
   dependencies: "dependencies.zip"
   schemas: "schemas.yaml"
-  # registry: "cr.yandex"
-  # registry_id: "crp7u8e412lmno90p"
-  # image_name: "dbt_project_img"
   metrics_path: "metrics"
 
 scripts:
@@ -71,7 +68,7 @@ dataproc:
 airflow:
   url: "http://84.201.128.45:8080"
   yc_conn_id: yandex_cloud_default
-  aws_conn_id: "yandex_cloud_s3"    # ???
+  aws_conn_id: "yandex_cloud_s3"
   sensor:
     poke_interval: 10
     timeout: 5
