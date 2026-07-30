@@ -13,15 +13,10 @@ UInt16 на стороне ClickHouse.
 - Разные витрины 
 
 Airflow:
-- Проработать Makefile
-- тесты вместо load_s3_yaml_config сделать get_config_json
-- тест get_spark_session сместо spark, config = get_spark_session(sys.argv) сделать spark = get_spark_session(sys.argv)
-- удалеить тесты get_s3_url_schemas
-- StatsTableSync поменял файл
-- MetricsValidate поменял файл дописал методы
-- Разобраться с параметрами под @task
-- актуализировтаь dbt
 - актуализировать cicd
+- spark 3.3.2
+- Подключения и среды dev prod для всех
+- Проработать Makefile
 
 Заполняем:
 airflow_url в конфигах
@@ -45,7 +40,7 @@ sql,
 python,
 Grafana (Для Airflow и ClickHouse включаются специальные модули (Prometheus Exporters), которые отдают метрики. Prometheus их забирает, а Grafana красиво рисует графики и отправляет алерты в Telegram/Slack, если ClickHouse упал или диск заполнился на 90%.),
 Great Expectations / Elementary / Monte Carlo: Эти инструменты интегрируются прямо в ваш dbt-пайплайн. Например, Elementary собирает метрики тестов dbt, строит по ним отчеты и может слать алерты в Telegram, если данные «поплыли».
-
+Pandas, numpy и др. библиотеки для анализа
 
 Пересмотреть:
 - вынести в cicd запуск миграций и справочников

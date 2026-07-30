@@ -44,7 +44,7 @@ def send_telegram_alert(context):
     task_id='fetch_spark_metrics', 
     trigger_rule='all_done'
 )
-def fetch_and_log_spark_metrics(ds, configs, **kwargs):
+def fetch_and_log_spark_metrics(configs, ds=None, ti=None):
     logger = logging.getLogger(__name__)
 
     cfg = configs['cfg']
@@ -80,7 +80,6 @@ def fetch_and_log_spark_metrics(ds, configs, **kwargs):
     logger.info(f"Error Rate           : {metrics_data.get('error_percent', 0.0)}%")
     logger.info("=" * 50)
     
-    ti = kwargs['ti']
     dag_run = ti.get_dagrun()
     
     bronze_to_silver_ti = dag_run.get_task_instance('bronze_to_silver')
@@ -293,10 +292,7 @@ def dwh_core_elthub():
         args=["--config_json", "{{ configs | combine({'ds': ds}) | tojson }}"]
     )
 
-    fetch_metrics_task = fetch_and_log_spark_metrics(
-        ds='{{ ds }}',
-        configs=configs
-    )
+    fetch_metrics_task = fetch_and_log_spark_metrics(configs=configs)
 
     silver_to_gold = DataprocCreatePysparkJobOperator(
         task_id='silver_to_gold',
@@ -339,7 +335,7 @@ def dwh_core_elthub():
         ),
         api_version='auto',
         auto_remove=True,
-        command='dbt build --profiles-dir . --target dev',
+        command='dbt build --profiles-dir . --target base',
         environment={
             'STORAGE': os.environ.get('STORAGE'),
             'GOLD': os.environ.get('GOLD'),

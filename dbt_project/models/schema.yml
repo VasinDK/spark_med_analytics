@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: visits
+  - name: mart_visits
     description: "Showcase of all visit data doctor visits. Synchronized incrementally from the Iceberg Gold layer."
     meta:
       status: "active"
@@ -16,8 +16,8 @@ models:
         description: "Date and time of the doctor visit."
         tests:
           - not_null
-      - name: event_date
-        description: "Technical ClickHouse column (rounding visit_date to the beginning of the day) used for partitioning."
+      - name: event_month
+        description: "Technical ClickHouse column (rounding visit_date to the beginning of the month) used for partitioning."
       - name: age
         description: "Patient's age."
       - name: gender_id

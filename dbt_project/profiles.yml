@@ -1,7 +1,7 @@
 dbt_project:
-  target: dev
+  target: base
   outputs:
-    dev:
+    base:
       type: clickhouse
       host: "{{ env_var('CLICKHOUSE_HOST') }}"
       port: "{{ env_var('CLICKHOUSE_PORT')  | int }}"
