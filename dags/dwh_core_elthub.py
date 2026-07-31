@@ -44,7 +44,7 @@ def send_telegram_alert(context):
     task_id='fetch_spark_metrics', 
     trigger_rule='all_done'
 )
-def fetch_and_log_spark_metrics(configs, ds=None, ti=None):
+def fetch_spark_metrics(configs, ds=None, ti=None):
     logger = logging.getLogger(__name__)
 
     cfg = configs['cfg']
@@ -114,7 +114,7 @@ def fetch_config_from_s3():
     return {'cfg': cfg, 'schemas': schema}
 
 @task
-def archive_processed_raw_data(configs_dict: dict, ds: str):
+def archiving_raw(configs_dict: dict, ds: str):
     s3 = boto3.client('s3', 
         endpoint_url=os.environ.get("STORAGE"),
         aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
@@ -189,7 +189,7 @@ def dwh_core_elthub():
     )
 
     create_cluster = DataprocCreateClusterOperator(
-        task_id='create_dataproc_cluster',
+        task_id='create_cluster',
         yc_conn_id=configs['cfg']['airflow']['yc_conn_id'],
         cluster_name="{{ configs['cfg']['infrastructure']['cluster_name'] }}-{{ ds }}",
         zone=configs['cfg']['dataproc']['zone'],
@@ -292,7 +292,7 @@ def dwh_core_elthub():
         args=["--config_json", "{{ configs | combine({'ds': ds}) | tojson }}"]
     )
 
-    fetch_metrics_task = fetch_and_log_spark_metrics(configs=configs)
+    fetch_metrics_task = fetch_spark_metrics(configs=configs)
 
     silver_to_gold = DataprocCreatePysparkJobOperator(
         task_id='silver_to_gold',
@@ -320,7 +320,7 @@ def dwh_core_elthub():
         args=["--config_json", "{{ configs | tojson }}"]
     )
 
-    archive_raw = archive_processed_raw_data(
+    archive_raw = archiving_raw(
         configs_dict=configs, 
         ds='{{ ds }}'
     )
@@ -352,7 +352,7 @@ def dwh_core_elthub():
     )
 
     delete_cluster = DataprocDeleteClusterOperator(
-        task_id='delete_dataproc_cluster',
+        task_id='delete_cluster',
         trigger_rule='all_done',
         yc_conn_id="{{ configs['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
