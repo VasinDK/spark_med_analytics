@@ -6,39 +6,18 @@
 
 ---
 
-## 🏗 Архитектура данных & Пайплайн (Medallion Architecture)
+## 🏗 Концептуальная архитектура потоков данных (Medallion Architecture)
 
-```text
-               ┌─────────────────────────────────────────┐
-               │  Сырые медицинские данные (Raw JSON)    │
-               └────────────────────┬────────────────────┘
-                                    │
-                                    ▼ [PySpark ETL: Bronze → Silver]
-               ┌────────────────────┴────────────────────┐
-               │ Наложение схемы, валидация & сбор DQ    │
-               └────────┬────────────────────────┬───────┘
-                        │                        │
-          [Массив errors ПУСТОЙ]          [Массив errors НЕ пустой]
-                        │                        │
-                        ▼                        ▼
- ┌──────────────────────┴──────┐          ┌──────┴──────────────────────┐
- │ Yandex S3: Silver (Iceberg) │          │  Yandex S3: Quarantine/DLQ  │
- └──────────────┬──────────────┘          └─────────────────────────────┘
-                │
-                ▼ [PySpark ETL: Silver → Gold]
- ┌─────────────────────────────┐
- │  Yandex S3: Gold (Iceberg)  │
- └──────────────┬──────────────┘
-                │
-                ▼ [Airflow: dbt-clickhouse container]
- ┌─────────────────────────────┐
- │       DWH: ClickHouse       │
- └──────────────┬──────────────┘
-                │
-                ▼ [BI Analytics]
- ┌─────────────────────────────┐
- │       Apache Superset       │
- └─────────────────────────────┘
+```mermaid
+graph TD
+    RAW[Сырые медицинские данные Raw JSON] -->|&nbsp; Bronze → Silver &nbsp;| VAL[Схема, валидация, DQ]
+    
+    VAL -->|&nbsp; No errors &nbsp;| SLV[Yandex S3: Silver Iceberg]
+    VAL -->|&nbsp; Errors &nbsp;| DLQ[Yandex S3: Quarantine/DLQ]
+    
+    SLV -->|&nbsp; Silver → Gold &nbsp;| GLD[Yandex S3: Gold Iceberg]
+    GLD -->|&nbsp; dbt-clickhouse &nbsp;| CH[DWH: ClickHouse]
+    CH -->|&nbsp; BI Analytics &nbsp;| SUP[Apache Superset]
 ```
 
 ### Поток данных
@@ -48,6 +27,56 @@
 3. **Silver ➡️ Gold:** `PySpark` (`jobs/silver_to_gold.py`) производит инкрементальную агрегацию данных из Silver-слоя Iceberg (по watermark `created_at`), формируя готовые бизнес-метрики в **Gold Layer (Iceberg)**.
 4. **Gold ➡️ ClickHouse (dbt):** Airflow запускает **dbt**, который инкрементально считывает дельту из Gold Iceberg и обновляет аналитические таблицы в **ClickHouse**.
 5. **BI-Слой:** Подключенный к ClickHouse **Apache Superset** визуализирует медицинские дашборды и графики.
+
+---
+
+## 🏗 Архитектура системы
+
+```mermaid
+graph TD
+    subgraph YC [Yandex Cloud]
+        subgraph VM [Compute Cloud VM]
+            subgraph DK [Docker Compose]
+                AF[Apache Airflow] -->|7. Запуск контейнера| DBT[dbt Core]
+                DBT -->|9. Обновление| CH[(ClickHouse)]
+                SUP[Apache Superset] -->|10. Чтение | CH
+            end
+        end
+
+        subgraph Storage [Object Storage]
+            S3_G[(S3 Gold Бакет)]
+            S3_S[(S3 Silver Бакет)]
+            S3_B[(S3 Bronze Бакет)]
+            S3_M[(S3 Конфиги)]
+        end
+
+        subgraph Compute [Data Proc Cluster]
+            SPARK[Apache Spark]
+        end
+
+        %% Цепочка выполнения пайплайна
+        AF -->|1. Получает конфиги| S3_M
+        AF -.->|2. Проверка наличия сырые данные| S3_B
+        AF -->|3. Запуск jobs| Compute
+        
+        %% Взаимодействие Spark с бакетами
+        SPARK -->|4. Чтение сырых JSON| S3_B
+        SPARK <-->|5. Чтение/Запись Iceberg| S3_S
+        SPARK <-->|6. Чтение/Запись Iceberg| S3_G
+        
+        %% Шаг архивации сырых файлов
+        AF -->|11. Raw data to archive| S3_B
+        
+        %% Взаимодействие dbt с Gold-слоем
+        DBT -->|8. Чтение Gold Iceberg| S3_G
+    end
+
+    %% Прозрачный фон для трех внешних контейнеров
+    style YC fill:none,stroke:#666666,stroke-width:1px
+    style VM fill:none,stroke:#888888,stroke-width:1px
+    style DK fill:none,stroke:#0288d1,stroke-width:1px,stroke-dasharray: 5 5
+
+```
 
 ---
 
@@ -221,43 +250,31 @@ make dbt-docs     # Генерация и просмотр документац�
 
 ---
 
-## 🔄 Принцип работы расписания в Airflow
+## ⏰ Оркестрация пайплайна в Apache Airflow
 
 Каждые сутки в **02:00** запускается DAG `dwh_core_elthub`:
 
-```text
-fetch_config_from_s3
-        │
-        ▼
-wait_for_bronze_data (S3KeySensor)
-        │
-        ▼
-create_cluster ──────────────────────────────────────┐
-        │                                            │
-        ▼                                            │
-ice_schema_migration                                 │
-        │                                            │
-        ▼                                            │
-load_ref_data                                        │
-        │                                            │
-        ▼                                            │
-bronze_to_silver                                     │
-        │                                            │
-        ▼                                            │
-fetch_metrics_task                                   │
-        │                                            │
-        ├──────────────┐                             │
-        ▼              ▼                             │
-silver_to_gold   archive_raw                         │
-        │                                            │
-        ▼                                            │
-dbt_clickhouse                                       │
-        │                                            │
-        ▼                                            │
-join_computations ───────────────────────────────────┤
-        │                                            │
-        ▼                                            ▼
-delete_cluster
+```mermaid
+graph TD
+    T1[1. fetch_config_from_s3] --> T2[2. wait_for_bronze_data]
+    T2 --> T3[3. create_cluster]
+    T3 --> T4[4. ice_schema_migration]
+    T4 --> T5[5. load_ref_data]
+    T5 --> T6[6. bronze_to_silver]
+    T6 --> T7[7. fetch_metrics_task]
+    
+    %% Ветвление
+    T7 --> T8[8. silver_to_gold]
+    T7 --> T9[9. archive_raw]
+    
+    T8 --> T10[10. dbt_clickhouse]
+    
+    %% Слияние
+    T10 --> T11[11. join_computations]
+    
+    %% Удаление кластера (триггер: all_done)
+    T3 --> T12[12. delete_cluster]
+    T11 --> T12
 ```
 
 1. **fetch_config_from_s3** — загружает конфигурацию и схемы из S3.
