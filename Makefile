@@ -204,6 +204,3 @@ dbt-docs:
 
 check:
 	@echo "Текущая среда: $(SPARK_ENV)"
-	@echo "Имя кластера из YAML: $(CLUSTER_NAME)"
-	@echo "GOLD из YAML: $(GOLD)"
-	
