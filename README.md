@@ -91,6 +91,8 @@ graph TD
 * **Преобразование данных:** dbt (data build tool) с адаптером под ClickHouse.
 * **Аналитическое DWH:** ClickHouse (высокопроизводительная OLAP СУБД).
 * **Качество кода:** Автоматическое тестирование Python-кода с помощью библиотеки **pytest** и линтера **black**.
+* **Контроль версий:** Git (GitHub / GitLab) с ветками `main` и `dev`.
+* **CI/CD:** GitHub Actions — автоматический запуск тестов и деплой на VM при push в `main`/`dev`.
 
 ---
 
@@ -140,6 +142,8 @@ graph TD
 ├── scripts/
 │   └── generate_data.py          # Генерация тестовых медицинских данных
 ├── tests/                        # Автоматические тесты Python (pytest)
+├── .github/
+│   └── workflows/ci-cd.yml       # GitHub Actions: тесты + деплой на VM
 ├── compose.yml                   # Docker Compose: ClickHouse, Airflow, Superset, Jupyter
 ├── dockerfile.airflow            # Dockerfile для Airflow
 ├── dockerfile.dbt                # Dockerfile для dbt-clickhouse
@@ -247,6 +251,28 @@ make dbt-run      # dbt run
 make dbt-test     # dbt test
 make dbt-docs     # Генерация и просмотр документации (http://localhost:8081)
 ```
+
+---
+
+## 🔄 CI/CD (GitHub Actions)
+
+Проект использует **Git** для контроля версий (ветки `main` и `dev`) и **GitHub Actions** для автоматизации тестирования и деплоя. Пайплайн описан в `.github/workflows/ci-cd.yml` и запускается при push в ветки `main` или `dev`.
+
+```mermaid
+graph LR
+    PUSH[Push в main / dev] --> TEST[1. python-testing]
+    TEST -->|pytest прошёл| DEPLOY[2. deploy-to-vm]
+    DEPLOY --> VM[VM: git pull + docker build dbt-worker]
+```
+
+1. **python-testing** — на runner `ubuntu-24.04` устанавливается Python 3.8, зависимости из `requirements.txt`, после чего запускаются все тесты `pytest tests/`. Этот шаг гарантирует, что в репозиторий не попадает код с падающими тестами.
+2. **deploy-to-vm** — выполняется только после успешного прохождения тестов (`needs: python-testing`). Через SSH (`appleboy/ssh-action`) на боевой VM выполняется `git checkout`/`git pull` нужной ветки и сборка Docker-образа `dbt-worker` из `dockerfile.dbt`.
+
+Для работы деплоя в репозитории должны быть настроены секреты GitHub Actions:
+
+* `SERVER_HOST` — адрес VM.
+* `SERVER_USER` — пользователь для SSH-подключения.
+* `SSH_PRIVATE_KEY` — приватный SSH-ключ для доступа к VM.
 
 ---
 
