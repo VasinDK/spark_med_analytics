@@ -22,7 +22,7 @@ graph TD
 
 ### Поток данных
 
-1. **Bronze Layer:** Исходные JSON-файлы медицинских визитов, поступающие в Yandex Object Storage (S3) по пути `visits/<ds>/`.
+1. **Bronze Layer:** Исходные JSON-файлы медицинских визитов, поступающие в Yandex Object Storage (S3) по пути `visits/<data>/`.
 2. **Bronze ➡️ Silver:** `PySpark`-джоб (`jobs/bronze_to_silver.py`) выполняет кастомную фильтрацию и валидацию данных, отправляя брак в изолированный S3-карантин (с контролем порога `CriticalDataQualityError`), а валидные данные обогащает (ID, BMI, типы дат) и сохраняет в таблицы Silver-слоя.
 3. **Silver ➡️ Gold:** `PySpark` (`jobs/silver_to_gold.py`) производит инкрементальную агрегацию данных из Silver-слоя Iceberg (по watermark `created_at`), формируя готовые бизнес-метрики в **Gold Layer (Iceberg)**.
 4. **Gold ➡️ ClickHouse (dbt):** Airflow запускает **dbt**, который инкрементально считывает дельту из Gold Iceberg и обновляет аналитические таблицы в **ClickHouse**.
@@ -61,8 +61,8 @@ graph TD
         
         %% Взаимодействие Spark с бакетами
         SPARK -->|4. Чтение сырых JSON| S3_B
-        SPARK <-->|5. Чтение/Запись Iceberg| S3_S
-        SPARK <-->|6. Чтение/Запись Iceberg| S3_G
+        SPARK -->|5. Чтение/Запись Iceberg| S3_S
+        SPARK -->|6. Чтение/Запись Iceberg| S3_G
         
         %% Шаг архивации сырых файлов
         AF -->|11. Raw data to archive| S3_B
@@ -85,14 +85,14 @@ graph TD
 * **Облачная инфраструктура:** Yandex Cloud (Вычислительный кластер **Data Proc** для тяжелых Spark-задач, Virtual Machines, Object Storage S3).
 * **Контейнеризация:** Docker & Docker Compose (ClickHouse, dbt, Apache Airflow, Apache Superset).
 * **Оркестрация:** Apache Airflow (DAG `dwh_core_elthub`, запуск ежедневно в `02:00` UTC).
-* **Мониторинг:** Интегрированный **Telegram Alert Bot** для мгновенного оповещения о сбоях на любом этапе.
-* **Табличный формат:** Apache Iceberg (Hadoop Catalog поверх S3).
-* **Вычислительный движок:** Apache Spark (PySpark) со строгим контролем кэширования (`persist(StorageLevel.MEMORY_AND_DISK)` / `unpersist()`).
-* **Преобразование данных:** dbt (data build tool) с адаптером под ClickHouse.
-* **Аналитическое DWH:** ClickHouse (высокопроизводительная OLAP СУБД).
+* **Мониторинг:** Telegram для мгновенного оповещения о сбоях на любом этапе.
+* **Табличный формат:** Apache Iceberg (поверх S3).
+* **Вычислительный движок:** Apache Spark (PySpark) с кэшированием (`persist(MEMORY_AND_DISK)`).
+* **Преобразование данных:** dbt.
+* **Аналитическое DWH:** ClickHouse.
 * **Качество кода:** Автоматическое тестирование Python-кода с помощью библиотеки **pytest** и линтера **black**.
-* **Контроль версий:** Git (GitHub / GitLab) с ветками `main` и `dev`.
-* **CI/CD:** GitHub Actions — автоматический запуск тестов и деплой на VM при push в `main`/`dev`.
+* **Контроль версий:** Git.
+* **CI/CD:** GitHub Actions — автоматический запуск тестов и деплой на VM при push в `main`.
 
 ---
 
@@ -256,23 +256,7 @@ make dbt-docs     # Генерация и просмотр документац�
 
 ## 🔄 CI/CD (GitHub Actions)
 
-Проект использует **Git** для контроля версий (ветки `main` и `dev`) и **GitHub Actions** для автоматизации тестирования и деплоя. Пайплайн описан в `.github/workflows/ci-cd.yml` и запускается при push в ветки `main` или `dev`.
-
-```mermaid
-graph LR
-    PUSH[Push в main / dev] --> TEST[1. python-testing]
-    TEST -->|pytest прошёл| DEPLOY[2. deploy-to-vm]
-    DEPLOY --> VM[VM: git pull + docker build dbt-worker]
-```
-
-1. **python-testing** — на runner `ubuntu-24.04` устанавливается Python 3.8, зависимости из `requirements.txt`, после чего запускаются все тесты `pytest tests/`. Этот шаг гарантирует, что в репозиторий не попадает код с падающими тестами.
-2. **deploy-to-vm** — выполняется только после успешного прохождения тестов (`needs: python-testing`). Через SSH (`appleboy/ssh-action`) на боевой VM выполняется `git checkout`/`git pull` нужной ветки и сборка Docker-образа `dbt-worker` из `dockerfile.dbt`.
-
-Для работы деплоя в репозитории должны быть настроены секреты GitHub Actions:
-
-* `SERVER_HOST` — адрес VM.
-* `SERVER_USER` — пользователь для SSH-подключения.
-* `SSH_PRIVATE_KEY` — приватный SSH-ключ для доступа к VM.
+Проект использует **Git** для контроля версий и **GitHub Actions** для автоматизации тестирования и деплоя. Пайплайн описан в `.github/workflows/ci-cd.yml` и запускается при push в ветки `main`.
 
 ---
 
