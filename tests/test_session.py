@@ -36,7 +36,8 @@ class TestGetSparkSession:
                 get_spark_session(mock_config)
 
                 config_calls = [
-                    call for call in mock_builder.config.call_args_list
+                    call
+                    for call in mock_builder.config.call_args_list
                     if call[0][0] == "spark.sql.session.timeZone"
                 ]
                 assert len(config_calls) > 0

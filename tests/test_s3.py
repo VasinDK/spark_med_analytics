@@ -55,7 +55,9 @@ class TestReadS3Csv:
         mock_reader.csv.return_value = MagicMock()
 
         schema = MagicMock()
-        result = read_s3_csv(mock_spark, "s3a://bucket/file.csv", schema, has_header=False, delimiter=",")
+        result = read_s3_csv(
+            mock_spark, "s3a://bucket/file.csv", schema, has_header=False, delimiter=","
+        )
 
         mock_reader.option.assert_any_call("header", False)
         mock_reader.option.assert_any_call("delimiter", ",")

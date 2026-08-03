@@ -7,17 +7,18 @@ from src import constants
 
 logger = logging.getLogger(__name__)
 
+
 def handle_job_exception(spark, e: Exception):
     try:
         if isinstance(e, AnalysisException):
             error_desc = getattr(e, "desc", str(e))
             logger.error(constants.SPARK_ANALYSIS_ERROR.format(error_desc))
             sys.exit(1)
-            
+
         elif isinstance(e, CriticalDataQualityError):
             logger.error(constants.CRITICAL_ERROR.format(e))
             sys.exit(2)
-            
+
         elif isinstance(e, QuarantineWriteError):
             logger.exception(constants.S3_ERROR.format(e))
             sys.exit(1)
@@ -52,6 +53,6 @@ def handle_job_exception(spark, e: Exception):
 
     finally:
         try:
-            spark.stop() 
+            spark.stop()
         except Exception as e:
             logger.error(constants.SPARK_STOP_ERROR.format(e))

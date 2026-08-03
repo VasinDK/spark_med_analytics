@@ -43,6 +43,7 @@ class TestMonitorJob:
         @monitor_job
         def slow_function():
             import time
+
             time.sleep(0.01)
             return "done"
 

@@ -38,7 +38,9 @@ class TestMetricsValidate:
         }
 
     def test_str_representation(self):
-        metrics = MetricsValidate(total_rows=50, valid_rows=40, invalid_rows=10, error_percent=20.0)
+        metrics = MetricsValidate(
+            total_rows=50, valid_rows=40, invalid_rows=10, error_percent=20.0
+        )
         s = str(metrics)
         assert "total_rows=50" in s
         assert "valid_rows=40" in s

@@ -22,19 +22,25 @@ ADDING_NEW_COLUMN = "[ICEBERG INFO] Adding a new column '{}' ({}) to {}"
 DELETING_OUTDATED_COLUMN = "[ICEBERG INFO] Deleting the outdated column '{}' from {}"
 CHANGING_COLUMN_TYPE = "[ICEBERG INFO] Changing the column type '{}' to {}: {} -> {}"
 TABLE_NOT_FOUND_ERROR = "[ICEBERG ERROR] The table '{}' is described in YAML, but its address is not found in the layer configuration."
-COLUMN_NOT_NULL = "[ICEBERG ERROR] The column being added to the iceberg cannot be 'not null'"
+COLUMN_NOT_NULL = (
+    "[ICEBERG ERROR] The column being added to the iceberg cannot be 'not null'"
+)
 SYNC_TABLE_ERROR = "[ICEBERG ERROR] Table synchronization error"
 MERGE_KEYS_ERROR = "[ICEBERG ERROR] In the schemas configuration.yaml does not set 'merge_keys' for {}.{}"
 
 
 QUALITY_METRICS_LOG = "[DATA INFO] === Quality Metrics: {} ==="
 INCREMENT_POINT = "[DATA INFO] The increment point (Watermark): {}"
-NO_NEW_CHANGED_DATA_GOLD = "[DATA INFO] There is no new or changed data to update the Gold layer"
+NO_NEW_CHANGED_DATA_GOLD = (
+    "[DATA INFO] There is no new or changed data to update the Gold layer"
+)
 BROKEN_JSON_STRINGS = "[DATA WARN] Attention! {} broken JSON strings found"
 QUARANTINE_WRITE_ERROR = "[DATA ERROR] Failed to route invalid data to quarantine. {}"
 
 
-INVALID_S3_PATH_ERROR = "[STORAGE ERROR] The provided S3 path is invalid or inaccessible: {}"
+INVALID_S3_PATH_ERROR = (
+    "[STORAGE ERROR] The provided S3 path is invalid or inaccessible: {}"
+)
 S3_ERROR = "[STORAGE ERROR] s3 error: {}"
 
 
@@ -44,5 +50,7 @@ CONFIGURATION_NOT_FOUND_ERROR = (
 )
 CONFIGURATION_ERROR = "[CONFIG ERROR] Configuration error"
 ERROR_READING_YAML_FILE = "[CONFIG ERROR] Error reading YAML file or file not found: {}"
-LAYER_IS_NOT_DESCRIBED = "[CONFIG ERROR] The '{}' layer is not described in the schemas.yaml configuration"
+LAYER_IS_NOT_DESCRIBED = (
+    "[CONFIG ERROR] The '{}' layer is not described in the schemas.yaml configuration"
+)
 TABLE_NOT_FOUND = "[CONFIG ERROR] The table '{}' was not found in the layer '{}'"

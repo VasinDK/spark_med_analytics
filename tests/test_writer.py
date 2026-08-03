@@ -16,9 +16,15 @@ class TestMergeTableFromView:
             {"name": "created_at", "type": "timestamp", "nullable": True},
             {"name": "updated_at", "type": "timestamp", "nullable": True},
         ]
-        mock_registry.get_merge_keys.return_value = ["visit_date", "snils", "disease_code"]
+        mock_registry.get_merge_keys.return_value = [
+            "visit_date",
+            "snils",
+            "disease_code",
+        ]
 
-        merge_table_from_view(mock_spark, mock_registry, "silver", "visits", "temp_view")
+        merge_table_from_view(
+            mock_spark, mock_registry, "silver", "visits", "temp_view"
+        )
 
         sql_call = mock_spark.sql.call_args[0][0]
         assert "MERGE INTO iceberg.silver.visits t" in sql_call
@@ -34,7 +40,9 @@ class TestMergeTableFromView:
         mock_registry.get_merge_keys.return_value = []
 
         with pytest.raises(MergeTableError):
-            merge_table_from_view(mock_spark, mock_registry, "silver", "visits", "temp_view")
+            merge_table_from_view(
+                mock_spark, mock_registry, "silver", "visits", "temp_view"
+            )
 
     def test_merge_table_update_columns(self):
         mock_spark = MagicMock()
@@ -47,12 +55,20 @@ class TestMergeTableFromView:
             {"name": "created_at", "type": "timestamp", "nullable": True},
             {"name": "updated_at", "type": "timestamp", "nullable": True},
         ]
-        mock_registry.get_merge_keys.return_value = ["visit_date", "snils", "disease_code"]
+        mock_registry.get_merge_keys.return_value = [
+            "visit_date",
+            "snils",
+            "disease_code",
+        ]
 
-        merge_table_from_view(mock_spark, mock_registry, "silver", "visits", "temp_view")
+        merge_table_from_view(
+            mock_spark, mock_registry, "silver", "visits", "temp_view"
+        )
 
         sql_call = mock_spark.sql.call_args[0][0]
-        update_section = sql_call.split("WHEN MATCHED THEN UPDATE")[1].split("WHEN NOT MATCHED")[0]
+        update_section = sql_call.split("WHEN MATCHED THEN UPDATE")[1].split(
+            "WHEN NOT MATCHED"
+        )[0]
         assert "t.created_at" not in update_section
         assert "t.updated_at = current_timestamp()" in sql_call
 

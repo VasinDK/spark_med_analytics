@@ -87,7 +87,8 @@ class TestSyncTableColumns:
         sync_table_columns(mock_spark, "iceberg.silver.test", yaml_fields, stats)
 
         add_calls = [
-            call_args for call_args in mock_spark.sql.call_args_list
+            call_args
+            for call_args in mock_spark.sql.call_args_list
             if "ADD COLUMN" in call_args[0][0]
         ]
         assert len(add_calls) == 1
@@ -112,7 +113,8 @@ class TestSyncTableColumns:
         sync_table_columns(mock_spark, "iceberg.silver.test", yaml_fields, stats)
 
         drop_calls = [
-            call_args for call_args in mock_spark.sql.call_args_list
+            call_args
+            for call_args in mock_spark.sql.call_args_list
             if "DROP COLUMN" in call_args[0][0]
         ]
         assert len(drop_calls) == 1

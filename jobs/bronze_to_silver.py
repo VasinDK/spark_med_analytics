@@ -15,12 +15,15 @@ from src.constants import CRITICAL_ERROR_PERCENT_DETAILS
 
 TEMP_SILVER_DATA = "temp_silver_data"
 
+
 @monitor_job
 def run_etl_silver(spark: SparkSession, full_config: dict):
-    config = full_config['cfg']
-    ds = full_config['ds']
-    
-    registry = DataCatalogRegistry.from_s3_yaml_file(config['infrastructure']['schemas'])
+    config = full_config["cfg"]
+    ds = full_config["ds"]
+
+    registry = DataCatalogRegistry.from_s3_yaml_file(
+        config["infrastructure"]["schemas"]
+    )
     metrics = MetricsValidate()
 
     with ActionContext(spark, full_config, metrics):
@@ -28,66 +31,75 @@ def run_etl_silver(spark: SparkSession, full_config: dict):
         input_path = f"{base_path}{ds}/*"
 
         df_raw = (
-            spark.read
-            .option("multiline", "true")
+            spark.read.option("multiline", "true")
             .option("columnNameOfCorruptRecord", "_corrupt_record")
             .json(input_path)
         )
 
-        df_bronze = (df_raw
-            .transform(cast_bronze(registry))
-            .transform(validate(config["dq_rule"])))
-        
+        df_bronze = df_raw.transform(cast_bronze(registry)).transform(
+            validate(config["dq_rule"])
+        )
+
         df_bronze.persist(StorageLevel.MEMORY_AND_DISK)
-        
+
         df_clean: DataFrame
         df_quarantine: DataFrame
         df_clean, df_quarantine = finalize_validation(df_bronze, metrics)
-        
-        if metrics.invalid_rows > 0:    
-            add_quarantine(df_quarantine, s3.build_s3_path(config["s3"]["quarantine_path"]))
+
+        if metrics.invalid_rows > 0:
+            add_quarantine(
+                df_quarantine, s3.build_s3_path(config["s3"]["quarantine_path"])
+            )
 
         if metrics.total_rows == 0:
             df_bronze.unpersist()
             return
-        
-        if metrics.error_percent > config['dq_rule']['percent_marriage']:
-            error_msg = CRITICAL_ERROR_PERCENT_DETAILS.format(metrics.error_percent, config['dq_rule']['percent_marriage'])
+
+        if metrics.error_percent > config["dq_rule"]["percent_marriage"]:
+            error_msg = CRITICAL_ERROR_PERCENT_DETAILS.format(
+                metrics.error_percent, config["dq_rule"]["percent_marriage"]
+            )
             raise CriticalDataQualityError(error_msg)
-        
-        df_silver = (df_clean
-            .transform(cast_visit_date)
-            .transform(add_id)
-            .transform(add_bmi))
+
+        df_silver = (
+            df_clean.transform(cast_visit_date).transform(add_id).transform(add_bmi)
+        )
 
         df_silver.persist(StorageLevel.MEMORY_AND_DISK)
         df_bronze.unpersist()
         df_silver.createOrReplaceTempView(TEMP_SILVER_DATA)
 
-        merge_table_from_view(spark, registry, 'silver', 'visits', TEMP_SILVER_DATA)
+        merge_table_from_view(spark, registry, "silver", "visits", TEMP_SILVER_DATA)
 
         symptoms_target = {
-            "table_address": registry.get_table_address('silver', 'visits_symptoms'),
+            "table_address": registry.get_table_address("silver", "visits_symptoms"),
             "raw_col": "symptoms_code",
             "target_col": "symptoms_code",
-            'all_columns': [f["name"].lower() for f in registry.get_fields('silver', 'visits_symptoms')],
+            "all_columns": [
+                f["name"].lower()
+                for f in registry.get_fields("silver", "visits_symptoms")
+            ],
         }
         upsert_array_relation(spark, symptoms_target, TEMP_SILVER_DATA)
 
         chronic_target = {
-            "table_address": registry.get_table_address('silver', 'visits_chronic'),
+            "table_address": registry.get_table_address("silver", "visits_chronic"),
             "raw_col": "chronic_diseases",
             "target_col": "chronic_diseases",
-            'all_columns': [f["name"].lower() for f in registry.get_fields('silver', 'visits_chronic')],
+            "all_columns": [
+                f["name"].lower()
+                for f in registry.get_fields("silver", "visits_chronic")
+            ],
         }
         upsert_array_relation(spark, chronic_target, TEMP_SILVER_DATA)
 
         df_silver.unpersist()
 
+
 if __name__ == "__main__":
     full_config = get_config()
     setup_logging()
-    spark = get_spark_session(full_config['cfg'])
+    spark = get_spark_session(full_config["cfg"])
     try:
         run_etl_silver(spark, full_config)
     except Exception as e:

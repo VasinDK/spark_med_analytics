@@ -1,6 +1,7 @@
 import logging.config
 import sys
 
+
 def setup_logging():
     LOGGING_CONFIG = {
         "version": 1,
@@ -8,7 +9,7 @@ def setup_logging():
         "formatters": {
             "standard": {
                 "format": "%(asctime)s [%(levelname)s] %(filename)s: %(message)s",
-                "datefmt": "%Y-%m-%d %H:%M:%S"
+                "datefmt": "%Y-%m-%d %H:%M:%S",
             },
         },
         "handlers": {

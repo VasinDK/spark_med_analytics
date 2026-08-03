@@ -15,23 +15,27 @@ TEMP_DF_PROFESSIONS = "temp_df_professions"
 
 @monitor_job
 def run_etl_reference(spark: SparkSession, config: dict):
-    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()['schemas'])
+    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()["schemas"])
     df_raw_departments = read_s3_csv(
-        spark, build_s3_path(config["s3"]["departments_csv"]), registry.get_spark_schema(spark, "silver", "departments")
+        spark,
+        build_s3_path(config["s3"]["departments_csv"]),
+        registry.get_spark_schema(spark, "silver", "departments"),
     )
     df_raw_professions = read_s3_csv(
-        spark, build_s3_path(config["s3"]["professions_csv"]), registry.get_spark_schema(spark, "silver", "professions")
+        spark,
+        build_s3_path(config["s3"]["professions_csv"]),
+        registry.get_spark_schema(spark, "silver", "professions"),
     )
 
     df_raw_departments.createOrReplaceTempView(TEMP_DF_DEPARTMENTS)
     df_raw_professions.createOrReplaceTempView(TEMP_DF_PROFESSIONS)
 
-    merge_table_from_view(spark, registry, 'silver', 'departments', TEMP_DF_DEPARTMENTS)
-    merge_table_from_view(spark, registry, 'silver', 'professions', TEMP_DF_PROFESSIONS)
+    merge_table_from_view(spark, registry, "silver", "departments", TEMP_DF_DEPARTMENTS)
+    merge_table_from_view(spark, registry, "silver", "professions", TEMP_DF_PROFESSIONS)
 
 
 if __name__ == "__main__":
-    config = get_config()['cfg']
+    config = get_config()["cfg"]
     setup_logging()
     spark = get_spark_session(config)
     try:
