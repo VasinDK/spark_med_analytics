@@ -57,25 +57,24 @@ help:
 	@echo "  make build        - Собрать .whl пакет для деплоя на Yandex Data Proc"
 	@echo "  make clean        - Удалить временные файлы, кэш и сборки"
 
-# Инициализация проекта и синхронизация зависимостей
 sync:
 	uv sync
 
-# Генерация тестовых данных (визиты, без справочников) в локальную папку data/
 generate:
 	mkdir -p data
 	uv run python scripts/generate_data.py
 
-# Запуск локальных юнит-тестов на pytest
 test:
 	uv run pytest tests/
 
-# Проверка форматирования кода
 lint:
-# 	uv run black src/ jobs/ scripts/ tests/ --check
-	uv run black jobs/bronze_to_silver.py
+	uv run black .
 
-# Сборка стабильного .whl пакета для отправки на кластер Data Proc
+clean:
+	rm -rf src/sparkmedanalytics.egg-info/ dist/ .pytest_cache/ .uv/ uv.lock spark-warehouse/ metastore_db/ derby.log
+	find . -name "__pycache__" -exec rm -rf {} +
+	find . -name "*.pyc" -exec rm -f {} +
+
 build: 
 	-uv build --wheel && \
 	yc storage s3 cp dist/$(WHL_FILE) s3://$(CODE_BUCKET)/$(WHL_FILE)
@@ -85,15 +84,8 @@ build:
 	-yc storage s3 cp data/10_patient_visits_1m.json s3://$(S3_BRONZE_PATH)/10_patient_visits_1m.json
 # 	-yc storage s3 cp data/departments.csv s3://$(S3_DEPARTMENTS_CSV)
 # 	-yc storage s3 cp data/professions.csv s3://$(S3_PROFESSIONS_CSV)
+# schema ->
 	
-
-# Очистка репозитория от временного мусора, кэша тестов и логов
-clean:
-	rm -rf src/sparkmedanalytics.egg-info/ dist/ .pytest_cache/ .uv/ uv.lock spark-warehouse/ metastore_db/ derby.log
-	find . -name "__pycache__" -exec rm -rf {} +
-	find . -name "*.pyc" -exec rm -f {} +
-
-# Скачивание зависимостей
 deps:
 	uv pip compile pyproject.toml -o requirements.txt && \
 	grep -E -v "pyspark|py4j|# " requirements.txt > requirements-cloud.txt && \

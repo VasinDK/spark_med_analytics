@@ -15,22 +15,33 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    deploy:
+      resources:
+        limits:
+          memory: 4000M
+        reservations:
+          memory: 2000M
+    command: >
+      /usr/bin/clickhouse-server --config-file=/etc/clickhouse-server/config.xml
+      -- --max_server_memory_usage=3670016000
+      --max_memory_usage=3221225472
     restart: always
   
   x-airflow-common: &airflow-common
     build:
       context: .
       dockerfile: dockerfile.airflow
-    user: "${AIR_UID}:0"
+    user: "0:0"
     volumes:
       - ./dags:/opt/airflow/dags
+      - ./config:/opt/airflow/config
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_ADMIN}:${AIR_DB_PASS}@postgres-airflow/${AIR_DB}
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-      STORAGE: ${STORAGE}
-      GOLD: ${GOLD}
+      STORAGE: ${STORAGE}   # Положить в .env
+      GOLD: ${GOLD}         # Подставить из конфига
       ICE_ACCESS_KEY_ID: ${ICE_ACCESS_KEY_ID}
       ICE_SECRET_ACCESS_KEY: ${ICE_SECRET_ACCESS_KEY}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -40,8 +51,8 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
-      CODE_BUCKET: ${CODE_BUCKET}
-      SPARK_ENV: ${SPARK_ENV}
+      CODE_BUCKET: ${CODE_BUCKET}   # 
+      SPARK_ENV: ${SPARK_ENV}       # из .env 
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
 
   postgres-airflow:
@@ -64,7 +75,7 @@ services:
     <<: *airflow-common
     container_name: airflow_init
     depends_on:
-      postgres:
+      postgres-airflow:
         condition: service_healthy
     command: >
       bash -c "airflow db migrate && 
@@ -78,7 +89,7 @@ services:
       - "8080:8080"
     command: airflow webserver
     depends_on:
-      postgres:
+      postgres-airflow:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
@@ -89,7 +100,7 @@ services:
     container_name: airflow_scheduler
     command: airflow scheduler
     depends_on:
-      postgres:
+      postgres-airflow:
         condition: service_healthy
       airflow-init:
         condition: service_completed_successfully 
@@ -128,6 +139,8 @@ services:
       superset init &&
       superset run -p 8088 -h 0.0.0.0 --with-threads --reload"
     depends_on:
+      postgres-superset:
+        condition: service_healthy
       clickhouse:
         condition: service_started
     restart: always

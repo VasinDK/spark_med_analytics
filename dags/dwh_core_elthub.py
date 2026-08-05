@@ -1,9 +1,4 @@
 import os
-import yaml
-import json
-import boto3
-import requests
-import logging
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
@@ -13,12 +8,13 @@ from airflow.providers.yandex.operators.dataproc import (
     DataprocCreatePysparkJobOperator,
     DataprocDeleteClusterOperator,
 )
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from airflow.exceptions import AirflowFailException
 from airflow.operators.empty import EmptyOperator
 
 
 def send_telegram_alert(context):
+    import requests
+    import logging
+
     ti = context["task_instance"]
     dag_id, task_id, log_url = ti.dag_id, ti.task_id, ti.log_url
     execution_date = context["logical_date"].strftime("%Y-%m-%d %H:%M")
@@ -47,7 +43,12 @@ def send_telegram_alert(context):
 
 
 @task(task_id="fetch_spark_metrics", trigger_rule="all_done")
-def fetch_spark_metrics(configs, ds=None, ti=None):
+def fetch_spark_metrics(configs, ds=None, ti=None, dag_run=None):
+    import json
+    import logging
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from airflow.exceptions import AirflowFailException
+
     logger = logging.getLogger(__name__)
 
     cfg = configs["cfg"]
@@ -91,52 +92,42 @@ def fetch_spark_metrics(configs, ds=None, ti=None):
     logger.info(f"Error Rate           : {metrics_data.get('error_percent', 0.0)}%")
     logger.info("=" * 50)
 
-    dag_run = ti.get_dagrun()
+    if dag_run:
+        bronze_to_silver_ti = dag_run.get_task_instance("bronze_to_silver")
 
-    bronze_to_silver_ti = dag_run.get_task_instance("bronze_to_silver")
-
-    if bronze_to_silver_ti and bronze_to_silver_ti.state == "failed":
-        raise AirflowFailException(
-            f"The pipeline was interrupted at the bronze_to_silver step due to data quality issues! "
-            f"A critical percentage of errors has been recorded: {metrics_data.get('error_percent', 0.0)}%"
-        )
+        if bronze_to_silver_ti and bronze_to_silver_ti.state == "failed":
+            raise AirflowFailException(
+                f"The pipeline was interrupted at the bronze_to_silver step due to data quality issues! "
+                f"A critical percentage of errors has been recorded: {metrics_data.get('error_percent', 0.0)}%"
+            )
 
     return metrics_data
 
 
 @task
 def fetch_config_from_s3():
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("STORAGE"),
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    )
+    import yaml
 
-    config_resp = s3.get_object(
-        Bucket=os.environ.get("CODE_BUCKET"),
-        Key=f"{os.environ.get('SPARK_ENV', 'dev')}_config.yaml",
-    )
-    cfg = yaml.safe_load(config_resp["Body"].read().decode("utf-8"))
+    env = os.getenv("SPARK_ENV", "dev")
 
-    schema_resp = s3.get_object(
-        Bucket=os.environ.get("CODE_BUCKET"), Key=cfg["infrastructure"]["schemas"]
-    )
-    schema = yaml.safe_load(schema_resp["Body"].read().decode("utf-8"))
+    config_path = f"/opt/airflow/config/{env}_config.yaml"
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f)
 
-    return {"cfg": cfg, "schemas": schema}
+    schema_path = f"/opt/airflow/config/schemas.yaml"
+    with open(schema_path, "r") as f:
+        schema = yaml.safe_load(f)
+
+    return {"cfg": cfg, "schema": schema}
 
 
 @task
-def archiving_raw(configs_dict: dict, ds: str):
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=os.environ.get("STORAGE"),
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-    )
+def archiving_raw(configs_dict: dict, ds=None):
+    import logging
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
     cfg = configs_dict["cfg"]
+    aws_conn_id = cfg["airflow"]["aws_conn_id"]
 
     source_bucket = cfg["s3"]["visits_json"]["bucket"]
     source_prefix = f"{cfg['s3']['visits_json']['path']}{ds}/"
@@ -145,35 +136,39 @@ def archiving_raw(configs_dict: dict, ds: str):
     target_prefix = f"{cfg['s3']['visits_archive']['path']}{ds}/"
 
     logging.info(
-        f"Archiving {source_bucket}/{source_prefix} in {target_bucket}/{target_prefix}"
+        f"Archiving {source_bucket}/{source_prefix} to {target_bucket}/{target_prefix}"
     )
 
-    paginator = s3.get_paginator("list_objects_v2")
-    pages = paginator.paginate(Bucket=source_bucket, Prefix=source_prefix)
+    s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+    keys = s3_hook.list_keys(bucket_name=source_bucket, prefix=source_prefix)
+
+    if not keys:
+        logging.info(
+            f"In the folder {source_prefix} no files were found for archiving."
+        )
+        return
 
     file_count = 0
-    for page in pages:
-        if "Contents" not in page:
-            logging.info(
-                f"In the folder {source_prefix} no files were found for archiving."
-            )
-            return
+    for source_key in keys:
+        if source_key.endswith("/"):
+            continue
 
-        for obj in page["Contents"]:
-            source_key = obj["Key"]
-            filename = source_key.replace(source_prefix, "")
-            target_key = f"{target_prefix}{filename}"
+        filename = source_key.replace(source_prefix, "")
+        target_key = f"{target_prefix}{filename}"
 
-            copy_source = {"Bucket": source_bucket, "Key": source_key}
-            s3.copy_object(CopySource=copy_source, Bucket=target_bucket, Key=target_key)
+        s3_hook.copy_object(
+            source_bucket_key=source_key,
+            dest_bucket_key=target_key,
+            source_bucket_name=source_bucket,
+            dest_bucket_name=target_bucket,
+        )
+        file_count += 1
 
-            s3.delete_object(Bucket=source_bucket, Key=source_key)
-
-            file_count += 1
-            logging.info(f"The file was successfully archived: {filename}")
+    if keys:
+        s3_hook.delete_objects(bucket_name=source_bucket, keys=keys)
+        logging.info(f"Successfully deleted {len(keys)} source files from S3.")
 
     logging.info(f"Archiving is complete. Moved files: {file_count}")
-
 
 default_args = {
     "owner": "data_engineers",
@@ -189,6 +184,7 @@ default_args = {
     dag_id="dwh_core_elthub",
     default_args=default_args,
     description="Medical Visit Processing Pipeline: Bronze -> Silver -> Gold -> ClickHouse",
+    render_template_as_native_obj=True,
     schedule_interval="0 2 * * *",
     start_date=datetime(2026, 1, 1),
     catchup=True,
@@ -200,147 +196,167 @@ def dwh_core_elthub():
 
     wait_for_bronze_data = S3KeySensor(
         task_id="wait_for_bronze_data",
-        bucket_name=configs["cfg"]["s3"]["bronze"],
+        bucket_name="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['s3']['bronze'] }}",
         bucket_key="visits/{{ ds }}/*",
         wildcard=True,
-        aws_conn_id=configs["cfg"]["airflow"]["aws_conn_id"],
-        mode=configs["cfg"]["airflow"]["sensor"]["mode"],
-        poke_interval=configs["cfg"]["airflow"]["sensor"]["poke_interval"] | int,
-        timeout=configs["cfg"]["airflow"]["sensor"]["timeout"] | int,
-        soft_fail=configs["cfg"]["airflow"]["sensor"]["soft_fail"],
+        aws_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['aws_conn_id'] }}",
+        mode="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['mode'] }}",
+        poke_interval="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['poke_interval'] | int }}",
+        timeout="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['timeout'] | int }}",
+        soft_fail="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['soft_fail'] | string | lower == 'true' }}",
     )
 
     create_cluster = DataprocCreateClusterOperator(
         task_id="create_cluster",
-        yc_conn_id=configs["cfg"]["airflow"]["yc_conn_id"],
-        cluster_name="{{ configs['cfg']['infrastructure']['cluster_name'] }}-{{ ds }}",
-        zone=configs["cfg"]["dataproc"]["zone"],
-        subnet_id=configs["cfg"]["dataproc"]["subnet_id"],
-        service_account_id=configs["cfg"]["dataproc"]["service_account_id"],
-        masternode_resource_spec={
-            "zone_id": configs["cfg"]["dataproc"]["zone"],
-            "cores": configs["cfg"]["dataproc"]["master_cores"],
-            "memory": configs["cfg"]["dataproc"]["master_memory"],
-            "disk_type_id": configs["cfg"]["dataproc"]["disk_type_id_master"],
-            "disk_size": configs["cfg"]["dataproc"]["disk_size_master"],
-        },
-        workernode_resource_spec={
-            "zone_id": configs["cfg"]["dataproc"]["zone"],
-            "cores": configs["cfg"]["dataproc"]["worker_cores"],
-            "memory": configs["cfg"]["dataproc"]["worker_memory"],
-            "disk_type_id": configs["cfg"]["dataproc"]["disk_type_id_worker"],
-            "disk_size": configs["cfg"]["dataproc"]["disk_size_worker"],
-        },
-        workernode_count=configs["cfg"]["dataproc"]["worker_count"],
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        cluster_name="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['cluster_name'] }}-{{ ds }}",
+        zone="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['zone'] }}",
+        subnet_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['subnet_id'] }}",
+        service_account_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['service_account_id'] }}",
+        masternode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['master_cores'] }}-m{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['master_memory'] }}",
+        masternode_disk_type="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_type_id_master'] }}",
+        masternode_disk_size="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_size_master'] | int }}",
+        computenode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_cores'] }}-m{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_memory'] }}",
+        computenode_disk_type="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_type_id_worker'] }}",
+        computenode_disk_size="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_size_worker'] | int }}",
+        computenode_count="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_count'] | int }}",
     )
 
     ice_schema_migration = DataprocCreatePysparkJobOperator(
         task_id="iceberg_schema_migration",
-        yc_conn_id=configs["cfg"]["airflow"]["yc_conn_id"],
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['schema_sync_ice'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['schema_sync_ice'] }}",
         py_files=[
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties={
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.type": "hadoop",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['silver_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['silver_warehouse']['path'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.path-style-access": "true",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}",
-        },
-        packages=["{{ configs['cfg']['packages'] }}"],
-        repositories=["{{ configs['cfg']['repositories'] }}"],
-        args=["--config_json", "{{ configs | tojson }}"],
+        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+            {% set cat = c['schema']['databases']['silver']['catalog'] %}
+            {{
+                {
+                    'spark.sql.catalog.' ~ cat: 'org.apache.iceberg.spark.SparkCatalog',
+                    'spark.sql.catalog.' ~ cat ~ '.type': 'hadoop',
+                    'spark.sql.catalog.' ~ cat ~ '.warehouse': 's3a://' ~ c['cfg']['s3']['silver_warehouse']['bucket'] ~ '/' ~ c['cfg']['s3']['silver_warehouse']['path'],
+                    'spark.sql.catalog.' ~ cat ~ '.io-impl': 'org.apache.iceberg.aws.s3.S3FileIO',
+                    'spark.sql.catalog.' ~ cat ~ '.s3.endpoint': c['cfg']['s3']['storage'],
+                    'spark.sql.catalog.' ~ cat ~ '.s3.path-style-access': 'true',
+                    'spark.sql.catalog.' ~ cat ~ '.aws.credentials.provider': 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
+                    'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
+                    'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
+                }
+            }}""",
+        packages="""{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}""",
+        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        args=[
+            "--config_json",
+            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+        ],
     )
 
     load_ref_data = DataprocCreatePysparkJobOperator(
         task_id="load_ref_data",
-        yc_conn_id=configs["cfg"]["airflow"]["yc_conn_id"],
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['load_ref_data'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['load_ref_data'] }}",
         py_files=[
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties={
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.type": "hadoop",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['silver_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['silver_warehouse']['path'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.path-style-access": "true",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}",
-        },
-        packages=["{{ configs['cfg']['packages'] }}"],
-        repositories=["{{ configs['cfg']['repositories'] }}"],
-        args=["--config_json", "{{ configs | tojson }}"],
+        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+            {% set cat = c['schema']['databases']['silver']['catalog'] %}
+            {{
+                {
+                    'spark.sql.catalog.' ~ cat: 'org.apache.iceberg.spark.SparkCatalog',
+                    'spark.sql.catalog.' ~ cat ~ '.type': 'hadoop',
+                    'spark.sql.catalog.' ~ cat ~ '.warehouse': 's3a://' ~ c['cfg']['s3']['silver_warehouse']['bucket'] ~ '/' ~ c['cfg']['s3']['silver_warehouse']['path'],
+                    'spark.sql.catalog.' ~ cat ~ '.io-impl': 'org.apache.iceberg.aws.s3.S3FileIO',
+                    'spark.sql.catalog.' ~ cat ~ '.s3.endpoint': c['cfg']['s3']['storage'],
+                    'spark.sql.catalog.' ~ cat ~ '.s3.path-style-access': 'true',
+                    'spark.sql.catalog.' ~ cat ~ '.aws.credentials.provider': 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
+                    'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
+                    'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
+                }
+            }}""",
+        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        args=[
+            "--config_json",
+            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+        ],
     )
 
     bronze_to_silver = DataprocCreatePysparkJobOperator(
         task_id="bronze_to_silver",
-        yc_conn_id=configs["cfg"]["airflow"]["yc_conn_id"],
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['bronze_to_silver'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['bronze_to_silver'] }}",
         py_files=[
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties={
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.type": "hadoop",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['silver_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['silver_warehouse']['path'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.s3.path-style-access": "true",
-            "spark.sql.catalog.{{ configs['schema']['databases']['silver']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}",
-        },
-        packages=["{{ configs['cfg']['packages'] }}"],
-        repositories=["{{ configs['cfg']['repositories'] }}"],
-        args=["--config_json", "{{ configs | combine({'ds': ds}) | tojson }}"],
+        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+            {% set cat = c['schema']['databases']['silver']['catalog'] %}
+            {{
+                {
+                    'spark.sql.catalog.' ~ cat: 'org.apache.iceberg.spark.SparkCatalog',
+                    'spark.sql.catalog.' ~ cat ~ '.type': 'hadoop',
+                    'spark.sql.catalog.' ~ cat ~ '.warehouse': 's3a://' ~ c['cfg']['s3']['silver_warehouse']['bucket'] ~ '/' ~ c['cfg']['s3']['silver_warehouse']['path'],
+                    'spark.sql.catalog.' ~ cat ~ '.io-impl': 'org.apache.iceberg.aws.s3.S3FileIO',
+                    'spark.sql.catalog.' ~ cat ~ '.s3.endpoint': c['cfg']['s3']['storage'],
+                    'spark.sql.catalog.' ~ cat ~ '.s3.path-style-access': 'true',
+                    'spark.sql.catalog.' ~ cat ~ '.aws.credentials.provider': 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
+                    'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
+                    'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
+                }
+            }}""",
+        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        args=[
+            "--config_json",
+            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | combine({'ds': ds}) | tojson }}",
+        ],
     )
 
     fetch_metrics_task = fetch_spark_metrics(configs=configs)
 
     silver_to_gold = DataprocCreatePysparkJobOperator(
         task_id="silver_to_gold",
-        yc_conn_id=configs["cfg"]["airflow"]["yc_conn_id"],
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['silver_to_gold'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['silver_to_gold'] }}",
         py_files=[
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties={
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.type": "hadoop",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['gold_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['gold_warehouse']['path'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.path-style-access": "true",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}",
-        },
-        packages=["{{ configs['cfg']['packages'] }}"],
-        repositories=["{{ configs['cfg']['repositories'] }}"],
-        args=["--config_json", "{{ configs | tojson }}"],
+        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+            {% set cat = c['schema']['databases']['gold']['catalog'] %}
+            {{
+                {
+                    'spark.sql.catalog.' ~ cat: 'org.apache.iceberg.spark.SparkCatalog',
+                    'spark.sql.catalog.' ~ cat ~ '.type': 'hadoop',
+                    'spark.sql.catalog.' ~ cat ~ '.warehouse': 's3a://' ~ c['cfg']['s3']['gold_warehouse']['bucket'] ~ '/' ~ c['cfg']['s3']['gold_warehouse']['path'],
+                    'spark.sql.catalog.' ~ cat ~ '.io-impl': 'org.apache.iceberg.aws.s3.S3FileIO',
+                    'spark.sql.catalog.' ~ cat ~ '.s3.endpoint': c['cfg']['s3']['storage'],
+                    'spark.sql.catalog.' ~ cat ~ '.s3.path-style-access': 'true',
+                    'spark.sql.catalog.' ~ cat ~ '.aws.credentials.provider': 'org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider',
+                    'spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
+                    'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
+                }
+            }}""",
+        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        args=[
+            "--config_json",
+            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+        ],
     )
 
-    archive_raw = archiving_raw(configs_dict=configs, ds="{{ ds }}")
+    archive_raw = archiving_raw(configs_dict=configs)
 
     dbt_clickhouse = DockerOperator(
         task_id="dbt_clickhouse",
@@ -364,13 +380,13 @@ def dwh_core_elthub():
     )
 
     join_computations = EmptyOperator(
-        task_id="join_computations", trigger_rule="all_done"
+        task_id="join_computations"
     )
 
     delete_cluster = DataprocDeleteClusterOperator(
         task_id="delete_cluster",
         trigger_rule="all_done",
-        yc_conn_id="{{ configs['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
     )
 
@@ -383,8 +399,9 @@ def dwh_core_elthub():
         >> bronze_to_silver
         >> fetch_metrics_task
     )
-    fetch_metrics_task >> [silver_to_gold, archive_raw]
-    silver_to_gold >> dbt_clickhouse >> join_computations
+    fetch_metrics_task >> silver_to_gold >> dbt_clickhouse
+    fetch_metrics_task >> archive_raw
+    [dbt_clickhouse, archive_raw] >> join_computations
     [create_cluster, join_computations] >> delete_cluster
 
 
