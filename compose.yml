@@ -35,13 +35,12 @@ services:
     volumes:
       - ./dags:/opt/airflow/dags
       - ./config:/opt/airflow/config
+      - ./pyproject.toml:/opt/airflow/pyproject.toml
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIR_DB_ADMIN}:${AIR_DB_PASS}@postgres-airflow/${AIR_DB}
       AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
-      STORAGE: ${STORAGE}   # Положить в .env
-      GOLD: ${GOLD}         # Подставить из конфига
       ICE_ACCESS_KEY_ID: ${ICE_ACCESS_KEY_ID}
       ICE_SECRET_ACCESS_KEY: ${ICE_SECRET_ACCESS_KEY}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
@@ -51,8 +50,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
-      CODE_BUCKET: ${CODE_BUCKET}   # 
-      SPARK_ENV: ${SPARK_ENV}       # из .env 
+      SPARK_ENV: ${SPARK_ENV}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
 
   postgres-airflow:

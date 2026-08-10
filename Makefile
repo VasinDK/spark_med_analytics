@@ -56,6 +56,7 @@ help:
 	@echo "  make gold-dev     - Запуск скриптов для подготовки слоя gold"
 	@echo "  make build        - Собрать .whl пакет для деплоя на Yandex Data Proc"
 	@echo "  make clean        - Удалить временные файлы, кэш и сборки"
+	@echo "  make air-build    - Билдит образа airflow с новыми зависимостями"
 
 sync:
 	uv sync
@@ -193,6 +194,12 @@ dbt-test:
 
 dbt-docs:
 	docker compose run --rm -p 8081:8080 dbt bash -c "dbt docs generate && dbt docs serve --port 8080"
+	
+air-build:
+	uv export --group airflow --python 3.12 --format requirements-txt > requirements-airflow.txt
+
+
+# 	Пересобрать образ. При Измерении dags 
 
 check:
 	@echo "Текущая среда: $(SPARK_ENV)"

@@ -8,6 +8,9 @@ wheels/
 .env
 data/
 src/sparkmedanalytics.egg-info
+requirements.txt
+requirements-cloud.txt
+Makefile
 Makefile_backup
 
 !data/departments.csv

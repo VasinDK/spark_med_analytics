@@ -43,7 +43,7 @@ def send_telegram_alert(context):
 
 
 @task(task_id="fetch_spark_metrics", trigger_rule="all_done")
-def fetch_spark_metrics(configs, ds=None, ti=None, dag_run=None):
+def fetch_spark_metrics(configs, ds=None, dag_run=None):
     import json
     import logging
     from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -105,8 +105,9 @@ def fetch_spark_metrics(configs, ds=None, ti=None, dag_run=None):
 
 
 @task
-def fetch_config_from_s3():
+def cfg_s3():
     import yaml
+    import tomllib
 
     env = os.getenv("SPARK_ENV", "dev")
 
@@ -114,11 +115,20 @@ def fetch_config_from_s3():
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    schema_path = f"/opt/airflow/config/schemas.yaml"
-    with open(schema_path, "r") as f:
+    with open("/opt/airflow/config/schemas.yaml", "r") as f:
         schema = yaml.safe_load(f)
 
-    return {"cfg": cfg, "schema": schema}
+    with open("/opt/airflow/pyproject.toml", "rb") as f:
+        pyproject = tomllib.load(f)
+    
+    project_info = pyproject["project"]
+    whl_name = f"{project_info['name']}-{project_info['version']}-py3-none-any.whl"
+    
+    return {
+        "cfg": cfg, 
+        "schema": schema,
+        "whl_file": whl_name
+    }
 
 
 @task
@@ -170,6 +180,7 @@ def archiving_raw(configs_dict: dict, ds=None):
 
     logging.info(f"Archiving is complete. Moved files: {file_count}")
 
+
 default_args = {
     "owner": "data_engineers",
     "depends_on_past": True,
@@ -192,47 +203,47 @@ default_args = {
     tags=["dwh", "medanalytics", "iceberg", "clickhouse"],
 )
 def dwh_core_elthub():
-    configs = fetch_config_from_s3()
+    configs = cfg_s3()
 
     wait_for_bronze_data = S3KeySensor(
         task_id="wait_for_bronze_data",
-        bucket_name="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['s3']['bronze'] }}",
+        bucket_name="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['s3']['bronze'] }}",
         bucket_key="visits/{{ ds }}/*",
         wildcard=True,
-        aws_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['aws_conn_id'] }}",
-        mode="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['mode'] }}",
-        poke_interval="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['poke_interval'] | int }}",
-        timeout="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['timeout'] | int }}",
-        soft_fail="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['sensor']['soft_fail'] | string | lower == 'true' }}",
+        aws_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['aws_conn_id'] }}",
+        mode="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['sensor']['mode'] }}",
+        poke_interval="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['sensor']['poke_interval'] | int }}",
+        timeout="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['sensor']['timeout'] | int }}",
+        soft_fail="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['sensor']['soft_fail'] | string | lower == 'true' }}",
     )
 
     create_cluster = DataprocCreateClusterOperator(
         task_id="create_cluster",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
-        cluster_name="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['cluster_name'] }}-{{ ds }}",
-        zone="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['zone'] }}",
-        subnet_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['subnet_id'] }}",
-        service_account_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['service_account_id'] }}",
-        masternode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['master_cores'] }}-m{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['master_memory'] }}",
-        masternode_disk_type="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_type_id_master'] }}",
-        masternode_disk_size="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_size_master'] | int }}",
-        computenode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_cores'] }}-m{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_memory'] }}",
-        computenode_disk_type="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_type_id_worker'] }}",
-        computenode_disk_size="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['disk_size_worker'] | int }}",
-        computenode_count="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['dataproc']['worker_count'] | int }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        cluster_name="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['cluster_name'] }}-{{ ds }}",
+        zone="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['zone'] }}",
+        subnet_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['subnet_id'] }}",
+        service_account_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['service_account_id'] }}",
+        masternode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['master_cores'] }}-m{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['master_memory'] }}",
+        masternode_disk_type="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['disk_type_id_master'] }}",
+        masternode_disk_size="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['disk_size_master'] | int }}",
+        computenode_resource_preset="s3-c{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['worker_cores'] }}-m{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['worker_memory'] }}",
+        computenode_disk_type="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['disk_type_id_worker'] }}",
+        computenode_disk_size="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['disk_size_worker'] | int }}",
+        computenode_count="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['dataproc']['worker_count'] | int }}",
     )
 
     ice_schema_migration = DataprocCreatePysparkJobOperator(
         task_id="iceberg_schema_migration",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['schema_sync_ice'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['scripts']['ice_schema_migration'] }}",
         py_files=[
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+        properties="""{% set c = ti.xcom_pull(task_ids='cfg_s3') %}
             {% set cat = c['schema']['databases']['silver']['catalog'] %}
             {{
                 {
@@ -247,25 +258,25 @@ def dwh_core_elthub():
                     'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
                 }
             }}""",
-        packages="""{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}""",
-        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        packages="""{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['packages'].split(',') | map('trim') | list }}""",
+        repositories=["{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['repositories'] }}"],
         args=[
             "--config_json",
-            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+            "{{ ti.xcom_pull(task_ids='cfg_s3') | tojson }}",
         ],
     )
 
     load_ref_data = DataprocCreatePysparkJobOperator(
         task_id="load_ref_data",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['load_ref_data'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['scripts']['load_ref_data'] }}",
         py_files=[
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+        properties="""{% set c = ti.xcom_pull(task_ids='cfg_s3') %}
             {% set cat = c['schema']['databases']['silver']['catalog'] %}
             {{
                 {
@@ -280,25 +291,25 @@ def dwh_core_elthub():
                     'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
                 }
             }}""",
-        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
-        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        packages="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['repositories'] }}"],
         args=[
             "--config_json",
-            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+            "{{ ti.xcom_pull(task_ids='cfg_s3') | tojson }}",
         ],
     )
 
     bronze_to_silver = DataprocCreatePysparkJobOperator(
         task_id="bronze_to_silver",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['bronze_to_silver'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['scripts']['bronze_to_silver'] }}",
         py_files=[
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+        properties="""{% set c = ti.xcom_pull(task_ids='cfg_s3') %}
             {% set cat = c['schema']['databases']['silver']['catalog'] %}
             {{
                 {
@@ -313,11 +324,11 @@ def dwh_core_elthub():
                     'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
                 }
             }}""",
-        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
-        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        packages="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['repositories'] }}"],
         args=[
             "--config_json",
-            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | combine({'ds': ds}) | tojson }}",
+            "{{ ti.xcom_pull(task_ids='cfg_s3') | combine({'ds': ds}) | tojson }}",
         ],
     )
 
@@ -325,15 +336,15 @@ def dwh_core_elthub():
 
     silver_to_gold = DataprocCreatePysparkJobOperator(
         task_id="silver_to_gold",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
         name="{{ task.task_id }}",
-        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['scripts']['silver_to_gold'] }}",
+        main_python_file_uri="s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['scripts']['silver_to_gold'] }}",
         py_files=[
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['infrastructure']['dependencies'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['whl_file'] }}",
+            "s3a://{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['code_bucket'] }}/{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['infrastructure']['dependencies'] }}",
         ],
-        properties="""{% set c = ti.xcom_pull(task_ids='fetch_config_from_s3') %}
+        properties="""{% set c = ti.xcom_pull(task_ids='cfg_s3') %}
             {% set cat = c['schema']['databases']['gold']['catalog'] %}
             {{
                 {
@@ -348,11 +359,11 @@ def dwh_core_elthub():
                     'spark.sql.logLevel': c['cfg']['log_level']['spark_sql']
                 }
             }}""",
-        packages="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
-        repositories=["{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['repositories'] }}"],
+        packages="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['packages'].split(',') | map('trim') | list }}",
+        repositories=["{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['repositories'] }}"],
         args=[
             "--config_json",
-            "{{ ti.xcom_pull(task_ids='fetch_config_from_s3') | tojson }}",
+            "{{ ti.xcom_pull(task_ids='cfg_s3') | tojson }}",
         ],
     )
 
@@ -365,8 +376,8 @@ def dwh_core_elthub():
         auto_remove=True,
         command="dbt build --profiles-dir . --target base",
         environment={
-            "STORAGE": os.environ.get("STORAGE"),
-            "GOLD": os.environ.get("GOLD"),
+            "STORAGE": "{{ (ti.xcom_pull(task_ids='cfg_s3') or {}).get('cfg', {}).get('s3', {}).get('storage', '') }}",
+            "GOLD": "{{ '{}/{}'.format((ti.xcom_pull(task_ids='cfg_s3') or {}).get('cfg', {}).get('s3', {}).get('gold_warehouse', {}).get('bucket', ''), (ti.xcom_pull(task_ids='cfg_s3') or {}).get('cfg', {}).get('s3', {}).get('gold_warehouse', {}).get('path', '')) }}",
             "ICE_ACCESS_KEY_ID": os.environ.get("ICE_ACCESS_KEY_ID"),
             "ICE_SECRET_ACCESS_KEY": os.environ.get("ICE_SECRET_ACCESS_KEY"),
             "CLICKHOUSE_HOST": os.environ.get("CLICKHOUSE_HOST"),
@@ -379,14 +390,12 @@ def dwh_core_elthub():
         network_mode="host",
     )
 
-    join_computations = EmptyOperator(
-        task_id="join_computations"
-    )
+    join_computations = EmptyOperator(task_id="join_computations")
 
     delete_cluster = DataprocDeleteClusterOperator(
         task_id="delete_cluster",
         trigger_rule="all_done",
-        yc_conn_id="{{ ti.xcom_pull(task_ids='fetch_config_from_s3')['cfg']['airflow']['yc_conn_id'] }}",
+        yc_conn_id="{{ ti.xcom_pull(task_ids='cfg_s3')['cfg']['airflow']['yc_conn_id'] }}",
         cluster_id=create_cluster.output,
     )
 

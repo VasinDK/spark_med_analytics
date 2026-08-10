@@ -41,7 +41,6 @@ databases:
         description: "Cleaned and validated medical visits data"
         status: "active"
         owner: "data-core-team"
-        # partition_by: ["days(visit_date)"]
         merge_keys: ["visit_date", "snils", "disease_code"]
         fields:
           - {name: "id", type: "string", nullable: false}

@@ -39,15 +39,13 @@ log_level:
 infrastructure:
   cluster_name: "sparkmedanalytics-cluster"
   code_bucket: "scripts-spark-med"
-  whl_file: "sparkmedanalytics-0.1.0-py3-none-any.whl"
   dependencies: "dependencies.zip"
   schemas: "schemas.yaml"
   metrics_path: "metrics"
 
 scripts:
   load_ref_data: "load_ref_data.py"
-  process_visits: "process_visits.py"
-  schema_sync_ice: "schema_sync_ice.py"
+  ice_schema_migration: "ice_schema_migration.py"
   bronze_to_silver: "bronze_to_silver.py"
   silver_to_gold: "silver_to_gold.py"
 
