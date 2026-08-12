@@ -21,10 +21,10 @@ Airflow:
 Поставка:
 - ветки называем так: feature_123_functional_description
 - feature_123_functional_description -> dev (commit "feat(dbt): [#123] add daily sales aggregation". При PR прогоняем linter, test)
-- dev -> test (commit "release 01_01_2026. features: 123, 234", 
+- dev -> test (commit "release 2026_08_12 feat: 001, 002", 
     накатываем на test_vm со своей тестовой базой iceberg. Билдим все, проганяем. 
     Если ок оставляем все так же, если не ок, откатывает iceberg и на test_vm ветку).
-- dev -> prod (просто накатываем, запускаем и тестируем smoke-тест, на prod vm и прод iceberg)
+- dev/test -> prod (просто накатываем, запускаем и тестируем smoke-тест, на prod vm и прод iceberg)
 
 Заполняем:
 airflow_url в конфигах
