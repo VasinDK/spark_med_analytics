@@ -1,29 +1,14 @@
-name: Production Deployment
+# Интеграционные тесты: Проверка взаимодействия сервисов и баз данных между собой.
+# E2E-тесты: Автоматическая имитация действий пользователя в браузере (Selenium, Playwright).
+# Сканирование безопасности (SAST/DAST): Проверка кода на уязвимости и устаревшие библиотеки.
+# Деплой на Stage: Автоматический деплой для ручного тестирования QA-инженерами.
+name: test push
 
 on:
   push:
-    branches: [ "main" ]
-
+    branches: [ test ]
+    
 jobs:
-  python-testing:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "latest"
-
-      - name: Set up Python 3.8
-        run: uv python install 3.8
-
-      - name: Install dependencies and Run Tests
-        run: |
-          uv sync --group dev
-          uv run pytest tests/
-
   build-and-upload:
     needs: python-testing
     runs-on: ubuntu-24.04
@@ -123,7 +108,6 @@ jobs:
                 docker build -t dbt-worker:latest -f dockerfile.dbt .
                 docker image prune -f
             fi
-
 
             if echo "$DIFF" | grep -q "dags/"; then
                 echo "DAG changes detected. Airflow will sync them via volumes."
