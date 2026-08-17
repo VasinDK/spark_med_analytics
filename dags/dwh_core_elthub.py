@@ -20,7 +20,7 @@ def send_telegram_alert(context):
     execution_date = context["logical_date"].strftime("%Y-%m-%d %H:%M")
 
     message = (
-        f"🚨 *Airflow Alert: Task in env `{os.environ.get("SPARK_ENV", "dev")}` failed*\n\n"
+        f"🚨 *Airflow Alert: Task in env `{os.environ.get('SPARK_ENV', 'dev')}` failed*\n\n"
         f"📅 *Date:* `{execution_date}`\n"
         f"🗂 *DAG:* `{dag_id}`\n"
         f"⚡️ *Task:* `{task_id}`\n\n"
@@ -120,15 +120,11 @@ def cfg_s3():
 
     with open("/opt/airflow/pyproject.toml", "rb") as f:
         pyproject = tomllib.load(f)
-    
+
     project_info = pyproject["project"]
     whl_name = f"{project_info['name']}-{project_info['version']}-py3-none-any.whl"
-    
-    return {
-        "cfg": cfg, 
-        "schema": schema,
-        "whl_file": whl_name
-    }
+
+    return {"cfg": cfg, "schema": schema, "whl_file": whl_name}
 
 
 @task
