@@ -80,16 +80,20 @@ def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
         """
         )
 
-        select_exprs = []
-        for col in target["all_columns"]:
-            if col == "visit_id":
-                select_exprs.append(f"id AS visit_id")
-            elif col == target["target_col"].lower():
-                select_exprs.append(
-                    f"explode({target['raw_col']}) AS {target['target_col']}"
-                )
-            else:
-                select_exprs.append(col)
+    select_exprs = []
+    for col in target["all_columns"]:
+        if col == "visit_id":
+            select_exprs.append(f"id AS visit_id")
+        elif col == target["target_col"].lower():
+            select_exprs.append(
+                f"explode({target['raw_col']}) AS {target['target_col']}"
+            )
+        elif col in ("created_at", "updated_at"):
+            # Источник (df_silver) не содержит служебных колонок created_at/updated_at,
+            # поэтому генерируем их при вставке, как в merge_table_from_view.
+            select_exprs.append("current_timestamp()")
+        else:
+            select_exprs.append(col)
 
     select_clause = ", ".join(select_exprs)
     columns_clause = ", ".join(target["all_columns"])

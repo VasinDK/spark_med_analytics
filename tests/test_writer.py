@@ -106,6 +106,40 @@ class TestUpsertArrayRelation:
 
         assert mock_spark.sql.call_count == 2
 
+    def test_upsert_uses_current_timestamp_for_tech_columns(self):
+        mock_spark = MagicMock()
+        mock_spark.sql.return_value.collect.return_value = [
+            ("2024-01-01", "2024-01-31")
+        ]
+
+        # all_columns из schemas.yaml для visits_symptoms включает служебные колонки,
+        # которых нет в source-view (df_silver) — см. bronze_to_silver.py.
+        target = {
+            "table_address": "iceberg.silver.visits_symptoms",
+            "raw_col": "symptoms_code",
+            "target_col": "symptoms_code",
+            "all_columns": [
+                "visit_id",
+                "symptoms_code",
+                "visit_date",
+                "created_at",
+                "updated_at",
+            ],
+        }
+
+        upsert_array_relation(mock_spark, target, "temp_view")
+
+        # Вызовы spark.sql: 1) min/max дат, 2) DELETE-мердж, 3) INSERT-запрос
+        assert mock_spark.sql.call_count == 3
+        insert_sql = mock_spark.sql.call_args_list[-1][0][0]
+
+        assert "SELECT id AS visit_id" in insert_sql
+        assert "explode(symptoms_code) AS symptoms_code" in insert_sql
+        # В source-view нет created_at/updated_at -> должны генерироваться
+        assert "current_timestamp()" in insert_sql
+        assert "created_at" in insert_sql
+        assert "updated_at" in insert_sql
+
 
 class TestAddQuarantine:
     def test_add_quarantine_success(self):
