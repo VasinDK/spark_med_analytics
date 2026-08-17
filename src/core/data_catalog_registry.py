@@ -12,7 +12,7 @@ class DataCatalogRegistry:
         self._databases = self._schema["databases"]
 
     @classmethod
-    def from_s3_yaml_file(cls, schema: dict) -> "DataCatalogRegistry":
+    def from_dict(cls, schema: dict) -> "DataCatalogRegistry":
         return cls(schema)
 
     def _get_layer_meta(self, layer: str) -> Dict[str, Any]:

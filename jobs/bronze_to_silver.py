@@ -20,7 +20,7 @@ TEMP_SILVER_DATA = "temp_silver_data"
 def run_etl_silver(spark: SparkSession):
     config = get_config()
 
-    registry = DataCatalogRegistry.from_s3_yaml_file(config["schema"])
+    registry = DataCatalogRegistry.from_dict(config["schema"])
     metrics = MetricsValidate()
 
     with ActionContext(spark, config, metrics):

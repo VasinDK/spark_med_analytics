@@ -16,7 +16,7 @@ TEMP_DF_PROFESSIONS = "temp_df_professions"
 @monitor_job
 def run_etl_reference(spark: SparkSession):
     config = get_config()
-    registry = DataCatalogRegistry.from_s3_yaml_file(config["schema"])
+    registry = DataCatalogRegistry.from_dict(config["schema"])
     df_raw_departments = read_s3_csv(
         spark,
         build_s3_path(config["cfg"]["s3"]["departments_csv"]),

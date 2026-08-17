@@ -80,16 +80,16 @@ def upsert_array_relation(spark: SparkSession, target: dict, source_view: str):
         """
         )
 
-    select_exprs = []
-    for col in target["all_columns"]:
-        if col == "visit_id":
-            select_exprs.append(f"id AS visit_id")
-        elif col == target["target_col"].lower():
-            select_exprs.append(
-                f"explode({target['raw_col']}) AS {target['target_col']}"
-            )
-        else:
-            select_exprs.append(col)
+        select_exprs = []
+        for col in target["all_columns"]:
+            if col == "visit_id":
+                select_exprs.append(f"id AS visit_id")
+            elif col == target["target_col"].lower():
+                select_exprs.append(
+                    f"explode({target['raw_col']}) AS {target['target_col']}"
+                )
+            else:
+                select_exprs.append(col)
 
     select_clause = ", ".join(select_exprs)
     columns_clause = ", ".join(target["all_columns"])

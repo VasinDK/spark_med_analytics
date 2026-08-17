@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 @monitor_job
 def run_ice_schema_migration(spark: SparkSession, layer: str):
-    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()["schema"])
+    registry = DataCatalogRegistry.from_dict(get_config()["schema"])
     stats = StatsTableSync()
     create_database(spark, registry.get_catalog_schema(layer))
 
-    for table_key in registry.get_active_tables():
+    for table_key in registry.get_active_tables(layer):
         sync_single_table(spark, registry, layer, table_key, stats)
 
     logger.info("=" * 30)
