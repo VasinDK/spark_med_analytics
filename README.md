@@ -92,7 +92,7 @@ graph TD
 * **Аналитическое DWH:** ClickHouse.
 * **Качество кода:** Автоматическое тестирование Python-кода с помощью библиотеки **pytest** и линтера **black**.
 * **Контроль версий:** Git.
-* **CI/CD:** GitHub Actions — автоматический запуск тестов и деплой на VM при push в `main`.
+* **CI/CD:** GitHub Actions — автоматические проверки (lint + pytest) при PR в `dev` и деплой на тестовую/продовую ВМ при push в `test` / `main` (см. раздел «CI/CD и поставка кода»).
 
 ---
 
@@ -143,11 +143,13 @@ graph TD
 │   └── generate_data.py          # Генерация тестовых медицинских данных
 ├── tests/                        # Автоматические тесты Python (pytest)
 ├── .github/
-│   └── workflows/ci-cd.yml       # GitHub Actions: тесты + деплой на VM
-├── compose.yml                   # Docker Compose: ClickHouse, Airflow, Superset, Jupyter
+│   └── workflows/
+│       ├── dev-pull-request.yml    # CI: lint + pytest при PR в dev
+│       ├── test-push.yml           # CD: деплой на test-ВМ при push в test
+│       └── prod-push.yml           # CD: деплой на prod-ВМ при push в main
+├── compose.yml                   # Docker Compose: ClickHouse, Airflow, Superset
 ├── dockerfile.airflow            # Dockerfile для Airflow
 ├── dockerfile.dbt                # Dockerfile для dbt-clickhouse
-├── Makefile                      # Автоматизация сборки и деплоя
 ├── pyproject.toml                # Конфигурация Python-пакета
 ├── requirements-airflow.txt      # Зависимости для Airflow
 ├── .env.example                  # Шаблон переменных окружения
@@ -158,7 +160,13 @@ graph TD
 
 ## 🚀 Порядок развертывания и запуска
 
-### 1. Переменные окружения и конфигурация
+### 1. Клонирование проекта
+
+```bash
+git clone https://github.com/VasinDK/spark_med_analytics.git
+```
+
+### 2. Переменные окружения и конфигурация
 
 Скопируйте шаблон `.env.example` в `.env` и заполните значения:
 
@@ -172,22 +180,14 @@ cp .env.example .env
 * `config/test_config.yaml` — конфигурация **test**-окружения (аналогично dev).
 * `config/prod_config.yaml` — конфигурация **prod**-окружения (аналогично dev).
 
-Выберите подходящий файл конфигурации под ваше окружение, заполните в нём значения (бакеты S3, параметры кластера Data Proc, правила качества данных) и передавайте его в джобы через параметр `--config_json`.
+Выберите подходящий файл конфигурации под ваше окружение, заполните в нём значения (бакеты S3, параметры кластера Data Proc, правила качества данных).
 
-### 2. Инициализация проекта и установка зависимостей
+### 3. Инициализация проекта и установка зависимостей
 
 Проект использует **uv** для управления зависимостями:
 
 ```bash
-make sync
-```
-
-### 3. Генерация тестовых данных
-
-Сгенерируйте тестовые медицинские данные в папку `data/`:
-
-```bash
-make generate
+uv sync
 ```
 
 ### 4. Запуск инфраструктуры (DWH + BI + Orchestration)
@@ -195,19 +195,17 @@ make generate
 Разверните все необходимые сервисы локально на ВМ или в облачном окружении:
 
 ```bash
-make docker-up
+docker compose dev up -d    # dev/test/prod
 ```
 
 *После запуска:*
 * **Apache Superset** — `http://localhost:8088` (дашборды ClickHouse)
 * **Apache Airflow** — `http://localhost:8080` (оркестрация DAG)
-* **Jupyter (dev)** — `http://localhost:8888` (профиль `dev`)
 
-Остановка и перезапуск:
+Остановка:
 
 ```bash
-make docker-down
-make docker-restart
+docker compose --profile "*" down --remove-orphans
 ```
 
 ### 5. Запуск автоматических тестов
@@ -215,50 +213,134 @@ make docker-restart
 Перед деплоем пайплайна на кластер Yandex Data Proc запустите проверку Python-логики:
 
 ```bash
-make test
+uv run pytest tests/
 ```
 
 Проверка форматирования кода:
 
 ```bash
-make lint
-```
-
-### 6. Сборка и деплой на Yandex Data Proc
-
-Сборка `.whl` пакета и отправка артефактов в S3:
-
-```bash
-make build
-```
-
-Запуск PySpark-джобов на кластере Data Proc:
-
-```bash
-make refs-dev     # Обновление справочников (departments, professions)
-make silver-dev   # Заполнение Silver-слоя
-make gold-dev     # Сборка Gold-слоя
-```
-
-### 7. Работа с dbt
-
-Запуск моделей dbt и тестов в контейнере:
-
-```bash
-make dbt-run      # dbt run
-make dbt-test     # dbt test
-make dbt-docs     # Генерация и просмотр документации (http://localhost:8081)
+uv run black .
 ```
 
 ---
 
-## 🔄 CI/CD (GitHub Actions)
+## 🔄 CI/CD и поставка кода (GitHub Actions)
 
-Проект использует **Git** для контроля версий и **GitHub Actions** для автоматизации тестирования и деплоя. Пайплайн описан в `.github/workflows/ci-cd.yml` и запускается при push в ветки `main`.
-1. **Каждый Pull Request (CI):** Автоматически запускает проверки кода на форматирование и прогоняет юнит-тесты пайплайна. При сбое линтера или тестов слияние с целевой веткой блокируется.
-2. **Push в ветку main (CD):** Автоматически собирает код проекта в Python-пакет, генерирует `.whl` и деплоит его вместе со Spark-джобами в бакет конфигураций S3.
-(Попросить пересобрать этот блок. 
-Добавить переменные окружения которые необходимо заполнпить в секретах)
+Проект использует **Git** для контроля версий и **GitHub Actions** для автоматизации тестирования и деплоя.
+
+### Модель ветвления
+
+Код движется по строгой веточной модели слева направо — `dev` → `test` → `prod`. Прод напрямую ничем не пополняется, кроме как готовыми выкатками из `dev`/`test`.
+
+```
+feature_123_functional_description  →  dev  →  test  →  prod (main)
+```
+
+* **Ветки фич** — `feature_NNN_short_description`, где `NNN` — номер задачи/тикета. Создаются от `dev`.
+* **`dev`** — ветка разработки и интеграции. Все фичи попадают сюда через Pull Request.
+* **`test`** — среда предрелиза. Получает код из `dev` и проверяется на тестовой ВМ.
+* **`prod` (main)** — боевая среда. Получает код из `dev`/`test` и накатывается на продовую ВМ.
+
+---
+
+**Этап 1. feature → dev (Pull Request + CI).** Ветка фичи создаётся от `dev` и именуется `feature_123_functional_description`.
+
+```bash
+git checkout dev
+git checkout -b feature_123_functional_description
+# ... работа над задачей ...
+git commit -m "feat(dbt): [#123] add daily sales aggregation"
+git push origin feature_123_functional_description
+```
+
+При открытии **Pull Request** в `dev` автоматически запускается воркфлоу `.github/workflows/dev-pull-request.yml` (**CI**):
+
+1. Устанавливаются зависимости (`uv sync --group dev`).
+2. Прогоняются **юнит-тесты** (`pytest tests/`).
+3. Выполняется проверка форматирования линтером **black** (`black --check .`).
+
+**Что происходит:** код ещё никуда не накатывается. CI только проверяет качество кода. Если тесты или линтер не прошли — слияние PR в `dev` блокируется. После успешной проверки ветку фичи объединяют (squash/merge) в `dev`.
+
+**Этап 2. dev → test (push в test, CD).** Когда фичи накоплены и пройден ревью, сборка переводится в `test`. Из ветки `dev` делается push в `test` с релизным коммитом:
+
+```bash
+git commit -m "release 2026_08_12 feat: 001, 002"
+```
+
+Push в `test` запускает воркфлоу `.github/workflows/test-push.yml` (**CD**). При поставке происходит следующее:
+
+1. **Сборка и выгрузка артефактов в S3** — собирается `.whl`-пакет, пакет зависимостей `dependencies.zip`, Spark-джобы (`jobs/`), конфигурация и схемы загружаются в бакет `test`.
+2. **Деплой на test-ВМ** — по SSH обновляется код на **test_vm**, пересоздаётся Docker Compose (если менялся `compose.*`, `dockerfile.airflow`, `requirements-airflow.txt` или `config/`), пересобирается образ `dbt-worker` (если менялись `dbt_project/`, `dockerfile.dbt`), перезапускается `airflow-scheduler` (если менялись `dags/`).
+3. **Прогон** — все контейнеры билдятся и запускаются, пайплайн накатывается на **собственную тестовую базу Iceberg** (`test`-бакеты).
+   * Если всё **ок** — среда остаётся как есть.
+   * Если **не ок** — производится **откат**: Iceberg откатывается на предыдущее стабильное состояние, а на test_vm — ветка на предыдущий релизный коммит.
+
+**Этап 3. dev/test → prod (push в main, CD).** После успешной проверки на `test` стабильный код переносится в прод. Ветка `main` обновляется из `dev`/`test`.
+
+Push в `main` запускает воркфлоу `.github/workflows/prod-push.yml` (**CD**):
+
+1. **Сборка и выгрузка артефактов в S3** в прод-бакеты `prod`.
+2. **Деплой на prod-ВМ** — обновление кода, пересборка Docker Compose и образов, перезапуск scheduler на **prod_vm**.
+
+---
+
+### Переменные окружения (что заполнять)
+
+#### Локальное окружение (`.env` / Docker Compose / Airflow-контейнер)
+
+Шаблон лежит в `.env.example`. Скопируйте в `.env` и заполните:
+
+```bash
+cp .env.example .env
+```
+
+| Переменная | Назначение | Пример |
+|-----------|------------|--------|
+| `SPARK_ENV` | Окружение (`dev` / `test` / `prod`). Управляет выбором конфига | `dev` |
+| `TZ` | Часовой пояс | `Europe/Moscow` |
+| `CLICKHOUSE_HOST` | Хост ClickHouse | `localhost` |
+| `CLICKHOUSE_DATABASE` | Имя БД ClickHouse | `your-db` |
+| `CLICKHOUSE_PORT` | HTTP-порт ClickHouse | `8123` |
+| `CLICKHOUSE_USER` | Пользователь ClickHouse | `USER` |
+| `CLICKHOUSE_PASSWORD` | Пароль ClickHouse | `your-pass` |
+| `AIR_UID` | UID пользователя Airflow | `0` |
+| `AIR_DB_ADMIN` | Логин админа Airflow (и пользователя метаданных-БД) | `airflow` |
+| `AIR_DB_PASS` | Пароль Airflow / метаданных-БД | `airflow_pass` |
+| `AIR_DB` | Имя метаданных-БД Airflow | `airflow` |
+| `AIR_DB_EMAIL` | Email администратора Airflow | `hi@air.com` |
+| `ICE_ACCESS_KEY_ID` | Access key для Iceberg (S3) | `123456` |
+| `ICE_SECRET_ACCESS_KEY` | Secret key для Iceberg (S3) | `123456` |
+| `AWS_ACCESS_KEY_ID` | Access key для Yandex Object Storage | `123` |
+| `AWS_SECRET_ACCESS_KEY` | Secret key для Yandex Object Storage | `123456` |
+| `TG_BOT_TOKEN` | Токен бота Telegram для алертов | `xxx` |
+| `TG_CHAT_ID` | Идентификатор чата Telegram для алертов | `xxxx` |
+| `SUPERSET_DB` | Имя метаданных-БД Superset | `superset_metadata_db` |
+| `SUPERSET_USER` | Логин администратора Superset | `admin` |
+| `SUPERSET_PASSWORD` | Пароль администратора Superset | `admin` |
+| `SUPERSET_EMAIL` | Email администратора Superset | `admin@admin.org` |
+| `SUPERSET_SECRET_KEY` | Секретный ключ Superset | `123456123456` |
+
+> `TG_BOT_TOKEN` и `TG_CHAT_ID` читаются DAG-ом `dwh_core_elthub.py` для отправки алертов в Telegram при сбое пайплайна.
+
+---
+
+### Секреты CI/CD (GitHub → Settings → Secrets and variables → Actions)
+
+В воркфлоу-файлах используются следующие секреты. Их нужно заполнить в настройках репозитория:
+
+| Секрет | Окружение | Назначение |
+|--------|-----------|------------|
+| `TEST_YC_AWS_ACCESS_KEY_ID` | test | Access key статического ключа Yandex Cloud (S3-выгрузка артефактов) |
+| `TEST_YC_AWS_SECRET_ACCESS_KEY` | test | Secret key статического ключа Yandex Cloud |
+| `TEST_SERVER_HOST` | test | IP/хост test-ВМ |
+| `TEST_SERVER_USER` | test | SSH-пользователь test-ВМ |
+| `TEST_SSH_PRIVATE_KEY` | test | SSH-приватный ключ для деплоя на test-ВМ |
+| `PROD_YC_AWS_ACCESS_KEY_ID` | prod | Access key статического ключа Yandex Cloud (S3-выгрузка артефактов) |
+| `PROD_YC_AWS_SECRET_ACCESS_KEY` | prod | Secret key статического ключа Yandex Cloud |
+| `PROD_SERVER_HOST` | prod | IP/хост prod-ВМ |
+| `PROD_SERVER_USER` | prod | SSH-пользователь prod-ВМ |
+| `PROD_SSH_PRIVATE_KEY` | prod | SSH-приватный ключ для деплоя на prod-ВМ |
+
 ---
 
 ## ⏰ Оркестрация пайплайна в Apache Airflow
@@ -334,27 +416,3 @@ graph TD
 | **Gold** | `iceberg.gold` | Агрегированные бизнес-метрики (`visits`) |
 | **ClickHouse** | — | Аналитические витрины (`mart_visits`) |
 
----
-
-## 🧰 Makefile команды
-
-| Команда | Описание |
-|---------|----------|
-| `make sync` | Создать виртуальное окружение и установить зависимости |
-| `make generate` | Сгенерировать тестовые данные в папку `data/` |
-| `make test` | Запустить локальные юнит-тесты через pytest |
-| `make lint` | Проверить форматирование кода линтером black |
-| `make build` | Собрать `.whl` пакет для деплоя на Yandex Data Proc |
-| `make refs-dev` | Обновление справочников и отправка статических файлов в облако |
-| `make silver-dev` | Запуск скриптов для подготовки слоя silver |
-| `make gold-dev` | Запуск скриптов для подготовки слоя gold |
-| `make docker-build` | Собрать Docker-образы |
-| `make docker-up` | Запустить Docker Compose стек |
-| `make docker-down` | Остановить Docker Compose стек |
-| `make docker-restart` | Перезапустить Docker Compose стек |
-| `make docker-ps` | Показать статус контейнеров |
-| `make docker-logs` | Показать логи Airflow |
-| `make dbt-run` | Запустить модели dbt |
-| `make dbt-test` | Запустить тесты dbt |
-| `make dbt-docs` | Сгенерировать и показать документацию dbt |
-| `make clean` | Удалить временные файлы, кэш и сборки |

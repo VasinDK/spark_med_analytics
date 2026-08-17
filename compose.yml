@@ -52,6 +52,7 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
       SPARK_ENV: ${SPARK_ENV}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
+      TG_CHAT_ID: ${TG_CHAT_ID}
 
   postgres-airflow:
     image: postgres:15-alpine
