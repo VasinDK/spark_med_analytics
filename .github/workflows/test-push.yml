@@ -41,8 +41,8 @@ jobs:
       - name: Configure AWS Credentials (Yandex S3)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.YC_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.YC_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.TEST_YC_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.TEST_YC_AWS_SECRET_ACCESS_KEY }}
           aws-region: ru-central1
 
       - name: Build and upload dependencies.zip

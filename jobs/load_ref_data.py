@@ -14,16 +14,17 @@ TEMP_DF_PROFESSIONS = "temp_df_professions"
 
 
 @monitor_job
-def run_etl_reference(spark: SparkSession, config: dict):
-    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()["schemas"])
+def run_etl_reference(spark: SparkSession):
+    config = get_config()
+    registry = DataCatalogRegistry.from_s3_yaml_file(config["schema"])
     df_raw_departments = read_s3_csv(
         spark,
-        build_s3_path(config["s3"]["departments_csv"]),
+        build_s3_path(config["cfg"]["s3"]["departments_csv"]),
         registry.get_spark_schema(spark, "silver", "departments"),
     )
     df_raw_professions = read_s3_csv(
         spark,
-        build_s3_path(config["s3"]["professions_csv"]),
+        build_s3_path(config["cfg"]["s3"]["professions_csv"]),
         registry.get_spark_schema(spark, "silver", "professions"),
     )
 
@@ -35,10 +36,9 @@ def run_etl_reference(spark: SparkSession, config: dict):
 
 
 if __name__ == "__main__":
-    config = get_config()["cfg"]
     setup_logging()
-    spark = get_spark_session(config)
+    spark = get_spark_session(get_config()["cfg"])
     try:
-        run_etl_reference(spark, config)
+        run_etl_reference(spark)
     except Exception as e:
         handle_job_exception(spark, e)
