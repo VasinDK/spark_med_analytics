@@ -17,18 +17,15 @@ TEMP_SILVER_DATA = "temp_silver_data"
 
 
 @monitor_job
-def run_etl_silver(spark: SparkSession, full_config: dict):
-    config = full_config["cfg"]
-    ds = full_config["ds"]
+def run_etl_silver(spark: SparkSession):
+    config = get_config()
 
-    registry = DataCatalogRegistry.from_s3_yaml_file(
-        config["infrastructure"]["schemas"]
-    )
+    registry = DataCatalogRegistry.from_dict(config["schema"])
     metrics = MetricsValidate()
 
-    with ActionContext(spark, full_config, metrics):
-        base_path = s3.build_s3_path(config["s3"]["visits_json"])
-        input_path = f"{base_path}{ds}/*"
+    with ActionContext(spark, config, metrics):
+        base_path = s3.build_s3_path(config["cfg"]["s3"]["visits_raw_json"])
+        input_path = f"{base_path}{config['ds']}/*"
 
         df_raw = (
             spark.read.option("multiline", "true")
@@ -37,7 +34,7 @@ def run_etl_silver(spark: SparkSession, full_config: dict):
         )
 
         df_bronze = df_raw.transform(cast_bronze(registry)).transform(
-            validate(config["dq_rule"])
+            validate(config["cfg"]["dq_rule"])
         )
 
         df_bronze.persist(StorageLevel.MEMORY_AND_DISK)
@@ -48,16 +45,16 @@ def run_etl_silver(spark: SparkSession, full_config: dict):
 
         if metrics.invalid_rows > 0:
             add_quarantine(
-                df_quarantine, s3.build_s3_path(config["s3"]["quarantine_path"])
+                df_quarantine, s3.build_s3_path(config["cfg"]["s3"]["quarantine_path"])
             )
 
         if metrics.total_rows == 0:
             df_bronze.unpersist()
             return
 
-        if metrics.error_percent > config["dq_rule"]["percent_marriage"]:
+        if metrics.error_percent > config["cfg"]["dq_rule"]["percent_marriage"]:
             error_msg = CRITICAL_ERROR_PERCENT_DETAILS.format(
-                metrics.error_percent, config["dq_rule"]["percent_marriage"]
+                metrics.error_percent, config["cfg"]["dq_rule"]["percent_marriage"]
             )
             raise CriticalDataQualityError(error_msg)
 
@@ -97,10 +94,9 @@ def run_etl_silver(spark: SparkSession, full_config: dict):
 
 
 if __name__ == "__main__":
-    full_config = get_config()
     setup_logging()
-    spark = get_spark_session(full_config["cfg"])
+    spark = get_spark_session(get_config()["cfg"])
     try:
-        run_etl_silver(spark, full_config)
+        run_etl_silver(spark)
     except Exception as e:
         errors.handle_job_exception(spark, e)

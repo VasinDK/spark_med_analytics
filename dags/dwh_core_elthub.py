@@ -20,7 +20,7 @@ def send_telegram_alert(context):
     execution_date = context["logical_date"].strftime("%Y-%m-%d %H:%M")
 
     message = (
-        f"🚨 *Airflow Alert: Task Failed*\n\n"
+        f"🚨 *Airflow Alert: Task in env `{os.environ.get('SPARK_ENV', 'dev')}` failed*\n\n"
         f"📅 *Date:* `{execution_date}`\n"
         f"🗂 *DAG:* `{dag_id}`\n"
         f"⚡️ *Task:* `{task_id}`\n\n"
@@ -120,15 +120,11 @@ def cfg_s3():
 
     with open("/opt/airflow/pyproject.toml", "rb") as f:
         pyproject = tomllib.load(f)
-    
+
     project_info = pyproject["project"]
     whl_name = f"{project_info['name']}-{project_info['version']}-py3-none-any.whl"
-    
-    return {
-        "cfg": cfg, 
-        "schema": schema,
-        "whl_file": whl_name
-    }
+
+    return {"cfg": cfg, "schema": schema, "whl_file": whl_name}
 
 
 @task
@@ -139,11 +135,11 @@ def archiving_raw(configs_dict: dict, ds=None):
     cfg = configs_dict["cfg"]
     aws_conn_id = cfg["airflow"]["aws_conn_id"]
 
-    source_bucket = cfg["s3"]["visits_json"]["bucket"]
-    source_prefix = f"{cfg['s3']['visits_json']['path']}{ds}/"
+    source_bucket = cfg["s3"]["visits_raw_json"]["bucket"]
+    source_prefix = f"{cfg['s3']['visits_raw_json']['path']}{ds}/"
 
-    target_bucket = cfg["s3"]["visits_archive"]["bucket"]
-    target_prefix = f"{cfg['s3']['visits_archive']['path']}{ds}/"
+    target_bucket = cfg["s3"]["visits_raw_archive"]["bucket"]
+    target_prefix = f"{cfg['s3']['visits_raw_archive']['path']}{ds}/"
 
     logging.info(
         f"Archiving {source_bucket}/{source_prefix} to {target_bucket}/{target_prefix}"

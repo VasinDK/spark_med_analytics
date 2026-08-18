@@ -1,16 +1,18 @@
 # 🏥 Spark Med Analytics
 
-Высокотехнологичный дата-инженерный пайплайн корпоративного уровня для пакетной (Batch) обработки сырых медицинских данных (истории визитов, хронические заболевания, показатели пациентов).
+> **English:** (you are here) | **Русская версия:** [README.ru.md](./README.ru.md)
 
-Проект реализует концепцию **Data Lakehouse** в облаке **Yandex Cloud** с использованием **Apache Spark** и **S3 Object Storage**, транзакционного формата таблиц **Apache Iceberg**, оркестрации в **Apache Airflow**, инкрементальной сборки витрин с помощью **dbt** для **ClickHouse** и визуализации в **Apache Superset**.
+An enterprise-grade, high-tech data engineering pipeline for **batch** processing of raw medical data (visit histories, chronic diseases, patient metrics).
+
+The project implements the **Data Lakehouse** concept in **Yandex Cloud** using **Apache Spark** and **S3 Object Storage**, the transactional table format **Apache Iceberg**, orchestration with **Apache Airflow**, incremental mart building with **dbt** for **ClickHouse**, and visualization in **Apache Superset**.
 
 ---
 
-## 🏗 Концептуальная архитектура потоков данных (Medallion Architecture)
+## 🏗 Conceptual Data Flow Architecture (Medallion Architecture)
 
 ```mermaid
 graph TD
-    RAW[Сырые медицинские данные Raw JSON] -->|&nbsp; Bronze → Silver &nbsp;| VAL[Схема, валидация, DQ]
+    RAW[Raw medical data Raw JSON] -->|&nbsp; Bronze → Silver &nbsp;| VAL[Schema, validation, DQ]
     
     VAL -->|&nbsp; No errors &nbsp;| SLV[Yandex S3: Silver Iceberg]
     VAL -->|&nbsp; Errors &nbsp;| DLQ[Yandex S3: Quarantine/DLQ]
@@ -20,58 +22,58 @@ graph TD
     CH -->|&nbsp; BI Analytics &nbsp;| SUP[Apache Superset]
 ```
 
-### Поток данных
+### Data Flow
 
-1. **Bronze Layer:** Исходные JSON-файлы медицинских визитов, поступающие в Yandex Object Storage (S3) по пути `visits/<data>/`.
-2. **Bronze ➡️ Silver:** `PySpark`-джоб (`jobs/bronze_to_silver.py`) выполняет кастомную фильтрацию и валидацию данных, отправляя брак в изолированный S3-карантин (с контролем порога `CriticalDataQualityError`), а валидные данные обогащает (ID, BMI, типы дат) и сохраняет в таблицы Silver-слоя.
-3. **Silver ➡️ Gold:** `PySpark` (`jobs/silver_to_gold.py`) производит инкрементальную агрегацию данных из Silver-слоя Iceberg (по watermark `created_at`), формируя готовые бизнес-метрики в **Gold Layer (Iceberg)**.
-4. **Gold ➡️ ClickHouse (dbt):** Airflow запускает **dbt**, который инкрементально считывает дельту из Gold Iceberg и обновляет аналитические таблицы в **ClickHouse**.
-5. **BI-Слой:** Подключенный к ClickHouse **Apache Superset** визуализирует медицинские дашборды и графики.
+1. **Bronze Layer:** Raw JSON files of medical visits arriving in Yandex Object Storage (S3) at `visits/<data>/`.
+2. **Bronze ➡️ Silver:** A `PySpark` job (`jobs/bronze_to_silver.py`) performs custom filtering and data validation, sending defective records to an isolated S3 quarantine (with the `CriticalDataQualityError` threshold control), while valid data is enriched (ID, BMI, date types) and saved to the Silver layer tables.
+3. **Silver ➡️ Gold:** `PySpark` (`jobs/silver_to_gold.py`) performs incremental aggregation of data from the Silver Iceberg layer (by the `created_at` watermark), building ready business metrics in the **Gold Layer (Iceberg)**.
+4. **Gold ➡️ ClickHouse (dbt):** Airflow runs **dbt**, which incrementally reads the delta from Gold Iceberg and updates the analytical tables in **ClickHouse**.
+5. **BI Layer:** **Apache Superset**, connected to ClickHouse, visualizes medical dashboards and charts.
 
 ---
 
-## 🏗 Архитектура системы
+## 🏗 System Architecture
 
 ```mermaid
 graph TD
     subgraph YC [Yandex Cloud]
         subgraph VM [Compute Cloud VM]
             subgraph DK [Docker Compose]
-                AF[Apache Airflow] -->|7. Запуск контейнера| DBT[dbt Core]
-                DBT -->|9. Обновление| CH[(ClickHouse)]
-                SUP[Apache Superset] -->|10. Чтение | CH
+                AF[Apache Airflow] -->|7. Run container| DBT[dbt Core]
+                DBT -->|9. Update| CH[(ClickHouse)]
+                SUP[Apache Superset] -->|10. Read | CH
             end
         end
 
         subgraph Storage [Object Storage]
-            S3_G[(S3 Gold Бакет)]
-            S3_S[(S3 Silver Бакет)]
-            S3_B[(S3 Bronze Бакет)]
-            S3_M[(S3 Конфиги)]
+            S3_G[(S3 Gold Bucket)]
+            S3_S[(S3 Silver Bucket)]
+            S3_B[(S3 Bronze Bucket)]
+            S3_M[(S3 Configs)]
         end
 
         subgraph Compute [Data Proc Cluster]
             SPARK[Apache Spark]
         end
 
-        %% Цепочка выполнения пайплайна
-        AF -->|1. Получает конфиги| S3_M
-        AF -.->|2. Проверка наличия сырые данные| S3_B
-        AF -->|3. Запуск jobs| Compute
+        %% Pipeline execution chain
+        AF -->|1. Fetches configs| S3_M
+        AF -.->|2. Checks raw data presence| S3_B
+        AF -->|3. Runs jobs| Compute
         
-        %% Взаимодействие Spark с бакетами
-        SPARK -->|4. Чтение сырых JSON| S3_B
-        SPARK -->|5. Чтение/Запись Iceberg| S3_S
-        SPARK -->|6. Чтение/Запись Iceberg| S3_G
+        %% Spark interaction with buckets
+        SPARK -->|4. Reads raw JSON| S3_B
+        SPARK -->|5. Reads/Writes Iceberg| S3_S
+        SPARK -->|6. Reads/Writes Iceberg| S3_G
         
-        %% Шаг архивации сырых файлов
+        %% Raw file archiving step
         AF -->|11. Raw data to archive| S3_B
         
-        %% Взаимодействие dbt с Gold-слоем
-        DBT -->|8. Чтение Gold Iceberg| S3_G
+        %% dbt interaction with the Gold layer
+        DBT -->|8. Reads Gold Iceberg| S3_G
     end
 
-    %% Прозрачный фон для трех внешних контейнеров
+    %% Transparent background for the three external containers
     style YC fill:none,stroke:#666666,stroke-width:1px
     style VM fill:none,stroke:#888888,stroke-width:1px
     style DK fill:none,stroke:#0288d1,stroke-width:1px,stroke-dasharray: 5 5
@@ -80,190 +82,272 @@ graph TD
 
 ---
 
-## 🛠 Технологический стек
+## 🛠 Technology Stack
 
-* **Облачная инфраструктура:** Yandex Cloud (Вычислительный кластер **Data Proc** для тяжелых Spark-задач, Virtual Machines, Object Storage S3).
-* **Контейнеризация:** Docker & Docker Compose (ClickHouse, dbt, Apache Airflow, Apache Superset).
-* **Оркестрация:** Apache Airflow (DAG `dwh_core_elthub`, запуск ежедневно в `02:00` UTC).
-* **Мониторинг:** Telegram для мгновенного оповещения о сбоях на любом этапе.
-* **Табличный формат:** Apache Iceberg (поверх S3).
-* **Вычислительный движок:** Apache Spark (PySpark) с кэшированием (`persist(MEMORY_AND_DISK)`).
-* **Преобразование данных:** dbt.
-* **Аналитическое DWH:** ClickHouse.
-* **Качество кода:** Автоматическое тестирование Python-кода с помощью библиотеки **pytest** и линтера **black**.
-* **Контроль версий:** Git.
-* **CI/CD:** GitHub Actions — автоматический запуск тестов и деплой на VM при push в `main`.
+* **Cloud infrastructure:** Yandex Cloud (Compute cluster **Data Proc** for heavy Spark jobs, Virtual Machines, Object Storage S3).
+* **Containerization:** Docker & Docker Compose (ClickHouse, dbt, Apache Airflow, Apache Superset).
+* **Orchestration:** Apache Airflow (DAG `dwh_core_elthub`, runs daily at `02:00` UTC).
+* **Monitoring:** Telegram for instant failure alerts at any stage.
+* **Table format:** Apache Iceberg (on top of S3).
+* **Compute engine:** Apache Spark (PySpark) with caching (`persist(MEMORY_AND_DISK)`).
+* **Data transformation:** dbt.
+* **Analytical DWH:** ClickHouse.
+* **Code quality:** Automated Python testing with the **pytest** library and the **black** linter.
+* **Version control:** Git.
+* **CI/CD:** GitHub Actions — automated checks (lint + pytest) on PR to `dev`, and deployment to test/prod VMs on push to `test` / `main` (see the "CI/CD and Code Delivery" section).
 
 ---
 
-## 📁 Структура проекта
+## 📁 Project Structure
 
 ```text
 ├── dags/
-│   └── dwh_core_elthub.py        # DAG Airflow: Bronze → Silver → Gold → ClickHouse
-├── jobs/                         # PySpark-джобы для Yandex Data Proc
-│   ├── bronze_to_silver.py       # Заполнение Silver-слоя, валидация и очистка
-│   ├── silver_to_gold.py         # Инкрементальная сборка Iceberg Gold таблиц
-│   ├── load_ref_data.py          # Загрузка справочников (departments, professions)
-│   └── ice_schema_migration.py   # Синхронизация схем Iceberg таблиц
-├── src/                          # Пакет Python (собирается в .whl)
+│   └── dwh_core_elthub.py        # Airflow DAG: Bronze → Silver → Gold → ClickHouse
+├── jobs/                         # PySpark jobs for Yandex Data Proc
+│   ├── bronze_to_silver.py       # Fill the Silver layer, validation and cleaning
+│   ├── silver_to_gold.py         # Incremental build of Iceberg Gold tables
+│   ├── load_ref_data.py          # Loading reference data (departments, professions)
+│   └── ice_schema_migration.py   # Iceberg table schema synchronization
+├── src/                          # Python package (built into .whl)
 │   ├── core/
-│   │   ├── session.py            # Инициализация Spark-сессии
-│   │   ├── data_catalog_registry.py  # Реестр каталогов/таблиц из schemas.yaml
-│   │   ├── schema_manager.py     # Создание и синхронизация схем Iceberg
-│   │   └── writer.py             # MERGE-запись, upsert массивов, карантин
+│   │   ├── session.py            # Spark session initialization
+│   │   ├── data_catalog_registry.py  # Catalog/table registry from schemas.yaml
+│   │   ├── schema_manager.py     # Creation and synchronization of Iceberg schemas
+│   │   └── writer.py             # MERGE writing, array upsert, quarantine
 │   ├── utils/
-│   │   ├── s3.py                 # Построение S3-путей, чтение CSV
-│   │   ├── validate.py           # Правила DQ-валидации (возраст, температура)
-│   │   ├── finalize_validation.py# Финальная валидация и подсчёт метрик
-│   │   ├── metrics_validate.py   # Класс сбора DQ-метрик (valid_rows, error_percent)
-│   │   ├── action_context.py     # Менеджер контекста выполнения Spark-шагов
-│   │   ├── errors.py             # Обработка исключений и кодов выхода
-│   │   ├── db.py                 # Получение watermark (последней даты)
-│   │   └── stats_table_sync.py   # Статистика синхронизации таблиц
-│   ├── transforms.py             # Трансформации (cast, id, BMI, даты)
-│   ├── decorators.py             # Декоратор @monitor_job для профилирования
-│   ├── exceptions.py             # Кастомные ошибки (CriticalDataQualityError)
-│   ├── constants.py              # Тексты логов и кодов ошибок
-│   ├── config.py                 # Чтение конфигурации из --config_json
-│   └── logging_config.py         # Настройка логирования
-├── dbt_project/                  # Модели dbt для данных в ClickHouse
+│   │   ├── s3.py                 # Building S3 paths, CSV reading
+│   │   ├── validate.py           # DQ validation rules (age, temperature)
+│   │   ├── finalize_validation.py# Final validation and metric calculation
+│   │   ├── metrics_validate.py   # DQ metrics collection class (valid_rows, error_percent)
+│   │   ├── action_context.py     # Execution context manager for Spark steps
+│   │   ├── errors.py             # Exception and exit code handling
+│   │   ├── db.py                 # Getting the watermark (last date)
+│   │   └── stats_table_sync.py   # Table sync statistics
+│   ├── transforms.py             # Transformations (cast, id, BMI, dates)
+│   ├── decorators.py             # @monitor_job decorator for profiling
+│   ├── exceptions.py             # Custom errors (CriticalDataQualityError)
+│   ├── constants.py              # Log texts and error codes
+│   ├── config.py                 # Reading configuration from --config_json
+│   └── logging_config.py         # Logging setup
+├── dbt_project/                  # dbt models for data in ClickHouse
 │   ├── models/
-│   │   ├── staging/stg_iceberg__visits.sql  # Чтение Gold Iceberg через icebergS3()
-│   │   ├── marts/mart_visits.sql            # Инкрементальная витрина ClickHouse
-│   │   └── schema.yml                       # Описание и тесты модели
+│   │   ├── staging/stg_iceberg__visits.sql  # Read Gold Iceberg via icebergS3()
+│   │   ├── marts/mart_visits.sql            # Incremental ClickHouse mart
+│   │   └── schema.yml                       # Model description and tests
 │   ├── dbt_project.yml
-│   └── profiles.yml              # Профиль подключения к ClickHouse
+│   └── profiles.yml              # ClickHouse connection profile
 ├── config/
-│   ├── dev_config.yaml           # Конфигурация dev-окружения (S3, Data Proc, DQ)
-│   ├── test_config.yaml          # Конфигурация test-окружения (аналогично dev)
-│   ├── prod_config.yaml          # Конфигурация prod-окружения (аналогично dev)
-│   └── schemas.yaml              # Схемы таблиц Bronze/Silver/Gold
+│   ├── dev_config.yaml           # dev environment config (S3, Data Proc, DQ)
+│   ├── test_config.yaml          # test environment config (same as dev)
+│   ├── prod_config.yaml          # prod environment config (same as dev)
+│   └── schemas.yaml              # Bronze/Silver/Gold table schemas
 ├── scripts/
-│   └── generate_data.py          # Генерация тестовых медицинских данных
-├── tests/                        # Автоматические тесты Python (pytest)
+│   └── generate_data.py          # Generation of test medical data
+├── tests/                        # Automated Python tests (pytest)
 ├── .github/
-│   └── workflows/ci-cd.yml       # GitHub Actions: тесты + деплой на VM
-├── compose.yml                   # Docker Compose: ClickHouse, Airflow, Superset, Jupyter
-├── dockerfile.airflow            # Dockerfile для Airflow
-├── dockerfile.dbt                # Dockerfile для dbt-clickhouse
-├── Makefile                      # Автоматизация сборки и деплоя
-├── pyproject.toml                # Конфигурация Python-пакета
-├── requirements-airflow.txt      # Зависимости для Airflow
-├── .env.example                  # Шаблон переменных окружения
+│   └── workflows/
+│       ├── dev-pull-request.yml    # CI: lint + pytest on PR to dev
+│       ├── test-push.yml           # CD: deploy to test-VM on push to test
+│       └── prod-push.yml           # CD: deploy to prod-VM on push to main
+├── compose.yml                   # Docker Compose: ClickHouse, Airflow, Superset
+├── dockerfile.airflow            # Dockerfile for Airflow
+├── dockerfile.dbt                # Dockerfile for dbt-clickhouse
+├── pyproject.toml                # Python package configuration
+├── requirements-airflow.txt      # Airflow dependencies
+├── .env.example                  # Environment variables template
 └── README.md
 ```
 
 ---
 
-## 🚀 Порядок развертывания и запуска
+## 🚀 Deployment & Getting Started
 
-### 1. Переменные окружения и конфигурация
+### 1. Cloning the Project
 
-Скопируйте шаблон `.env.example` в `.env` и заполните значения:
+```bash
+git clone https://github.com/VasinDK/spark_med_analytics.git
+```
+
+### 2. Environment Variables and Configuration
+
+Copy the `.env.example` template into `.env` and fill in the values:
 
 ```bash
 cp .env.example .env
 ```
 
-Конфигурация пайплайна хранится в YAML-файлах в каталоге `config/`. Каждый файл предназначен для работы в своём окружении:
+The pipeline configuration is stored in YAML files inside the `config/` directory. Each file is intended for a specific environment:
 
-* `config/dev_config.yaml` — конфигурация **dev**-окружения (S3, Data Proc, DQ-правила).
-* `config/test_config.yaml` — конфигурация **test**-окружения (аналогично dev).
-* `config/prod_config.yaml` — конфигурация **prod**-окружения (аналогично dev).
+* `config/dev_config.yaml` — **dev** environment config (S3, Data Proc, DQ rules).
+* `config/test_config.yaml` — **test** environment config (same as dev).
+* `config/prod_config.yaml` — **prod** environment config (same as dev).
 
-Выберите подходящий файл конфигурации под ваше окружение, заполните в нём значения (бакеты S3, параметры кластера Data Proc, правила качества данных) и передавайте его в джобы через параметр `--config_json`.
+Choose the config file matching your environment and fill in the values (S3 buckets, Data Proc cluster parameters, data quality rules).
 
-### 2. Инициализация проекта и установка зависимостей
+### 3. Project Initialization and Dependency Installation
 
-Проект использует **uv** для управления зависимостями:
+The project uses **uv** for dependency management:
 
 ```bash
-make sync
+uv sync
 ```
 
-### 3. Генерация тестовых данных
+### 4. Starting the Infrastructure (DWH + BI + Orchestration)
 
-Сгенерируйте тестовые медицинские данные в папку `data/`:
+Deploy all required services locally on a VM or in a cloud environment:
 
 ```bash
-make generate
+docker compose dev up -d    # dev/test/prod
 ```
 
-### 4. Запуск инфраструктуры (DWH + BI + Orchestration)
+*After startup:*
+* **Apache Superset** — `http://localhost:8088` (ClickHouse dashboards)
+* **Apache Airflow** — `http://localhost:8080` (DAG orchestration)
 
-Разверните все необходимые сервисы локально на ВМ или в облачном окружении:
+Shutdown:
 
 ```bash
-make docker-up
+docker compose --profile "*" down --remove-orphans
 ```
 
-*После запуска:*
-* **Apache Superset** — `http://localhost:8088` (дашборды ClickHouse)
-* **Apache Airflow** — `http://localhost:8080` (оркестрация DAG)
-* **Jupyter (dev)** — `http://localhost:8888` (профиль `dev`)
+### 5. Running the Automated Tests
 
-Остановка и перезапуск:
+Before deploying the pipeline to a Yandex Data Proc cluster, run a check of the Python logic:
 
 ```bash
-make docker-down
-make docker-restart
+uv run pytest tests/
 ```
 
-### 5. Запуск автоматических тестов
-
-Перед деплоем пайплайна на кластер Yandex Data Proc запустите проверку Python-логики:
+Code formatting check:
 
 ```bash
-make test
-```
-
-Проверка форматирования кода:
-
-```bash
-make lint
-```
-
-### 6. Сборка и деплой на Yandex Data Proc
-
-Сборка `.whl` пакета и отправка артефактов в S3:
-
-```bash
-make build
-```
-
-Запуск PySpark-джобов на кластере Data Proc:
-
-```bash
-make refs-dev     # Обновление справочников (departments, professions)
-make silver-dev   # Заполнение Silver-слоя
-make gold-dev     # Сборка Gold-слоя
-```
-
-### 7. Работа с dbt
-
-Запуск моделей dbt и тестов в контейнере:
-
-```bash
-make dbt-run      # dbt run
-make dbt-test     # dbt test
-make dbt-docs     # Генерация и просмотр документации (http://localhost:8081)
+uv run black .
 ```
 
 ---
 
-## 🔄 CI/CD (GitHub Actions)
+## 🔄 CI/CD and Code Delivery (GitHub Actions)
 
-Проект использует **Git** для контроля версий и **GitHub Actions** для автоматизации тестирования и деплоя. Пайплайн описан в `.github/workflows/ci-cd.yml` и запускается при push в ветки `main`.
-1. **Каждый Pull Request (CI):** Автоматически запускает проверки кода на форматирование и прогоняет юнит-тесты пайплайна. При сбое линтера или тестов слияние с целевой веткой блокируется.
-2. **Push в ветку main (CD):** Автоматически собирает код проекта в Python-пакет, генерирует `.whl` и деплоит его вместе со Spark-джобами в бакет конфигураций S3.
-(Попросить пересобрать этот блок. 
-Добавить переменные окружения которые необходимо заполнпить в секретах)
+The project uses **Git** for version control and **GitHub Actions** to automate testing and deployment.
+
+### Branching Model
+
+Code moves through a strict branching model from left to right — `dev` → `test` → `prod`. Production is not fed directly by anything other than ready-to-ship releases from `dev`/`test`.
+
+```
+feature_123_functional_description  →  dev  →  test  →  prod (main)
+```
+
+* **Feature branches** — `feature_NNN_short_description`, where `NNN` is the task/ticket number. Created from `dev`.
+* **`dev`** — the development and integration branch. All features land here via Pull Request.
+* **`test`** — the pre-release environment. Receives code from `dev` and is verified on the test VM.
+* **`prod` (main)** — the production environment. Receives code from `dev`/`test` and is rolled out to the prod VM.
+
 ---
 
-## ⏰ Оркестрация пайплайна в Apache Airflow
+**Stage 1. feature → dev (Pull Request + CI).** A feature branch is created from `dev` and named `feature_123_functional_description`.
 
-Каждые сутки в **02:00** запускается DAG `dwh_core_elthub`:
+```bash
+git checkout dev
+git checkout -b feature_123_functional_description
+# ... work on the task ...
+git commit -m "feat(dbt): [#123] add daily sales aggregation"
+git push origin feature_123_functional_description
+```
+
+When a **Pull Request** is opened to `dev`, the workflow `.github/workflows/dev-pull-request.yml` (**CI**) runs automatically:
+
+1. Dependencies are installed (`uv sync --group dev`).
+2. **Unit tests** are executed (`pytest tests/`).
+3. Formatting is checked with the **black** linter (`black --check .`).
+
+**What happens:** the code is not deployed anywhere yet. CI only checks code quality. If tests or the linter fail, the PR merge into `dev` is blocked. After a successful check, the feature branch is merged (squash/merge) into `dev`.
+
+**Stage 2. dev → test (push to test, CD).** When features have accumulated and passed review, the build is moved to `test`. A push to `test` is made from the `dev` branch with a release commit:
+
+```bash
+git commit -m "release 2026_08_12 feat: 001, 002"
+```
+
+A push to `test` triggers the workflow `.github/workflows/test-push.yml` (**CD**). During delivery the following happens:
+
+1. **Build and upload artifacts to S3** — a `.whl` package, the `dependencies.zip` dependencies bundle, Spark jobs (`jobs/`), configuration and schemas are uploaded to the `test` bucket.
+2. **Deploy to test-VM** — the code on **test_vm** is updated via SSH, Docker Compose is recreated (if `compose.*`, `dockerfile.airflow`, `requirements-airflow.txt` or `config/` changed), the `dbt-worker` image is rebuilt (if `dbt_project/`, `dockerfile.dbt` changed), and the `airflow-scheduler` is restarted (if `dags/` changed).
+3. **Dry run** — all containers are built and started, the pipeline is run against its **own test Iceberg database** (`test` buckets).
+   * If all is **OK** — the environment stays as is.
+   * If **not OK** — a **rollback** is performed: Iceberg is rolled back to the previous stable state, and on test_vm the branch is reset to the previous release commit.
+
+**Stage 3. dev/test → prod (push to main, CD).** After a successful check on `test`, stable code is moved to production. The `main` branch is updated from `dev`/`test`.
+
+A push to `main` triggers the workflow `.github/workflows/prod-push.yml` (**CD**):
+
+1. **Build and upload artifacts to S3** into the `prod` buckets.
+2. **Deploy to prod-VM** — update the code, rebuild Docker Compose and images, restart the scheduler on **prod_vm**.
+
+---
+
+### Environment Variables (what to fill in)
+
+#### Local environment (`.env` / Docker Compose / Airflow container)
+
+The template lives in `.env.example`. Copy it to `.env` and fill in the values:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Purpose | Example |
+|-----------|------------|--------|
+| `SPARK_ENV` | Environment (`dev` / `test` / `prod`). Controls which config is selected | `dev` |
+| `TZ` | Time zone | `Europe/Moscow` |
+| `CLICKHOUSE_HOST` | ClickHouse host | `localhost` |
+| `CLICKHOUSE_DATABASE` | ClickHouse database name | `your-db` |
+| `CLICKHOUSE_PORT` | ClickHouse HTTP port | `8123` |
+| `CLICKHOUSE_USER` | ClickHouse user | `USER` |
+| `CLICKHOUSE_PASSWORD` | ClickHouse password | `your-pass` |
+| `AIR_UID` | Airflow user UID | `0` |
+| `AIR_DB_ADMIN` | Airflow admin login (and metadata DB user) | `airflow` |
+| `AIR_DB_PASS` | Airflow / metadata DB password | `airflow_pass` |
+| `AIR_DB` | Airflow metadata DB name | `airflow` |
+| `AIR_DB_EMAIL` | Airflow admin email | `hi@air.com` |
+| `ICE_ACCESS_KEY_ID` | Access key for Iceberg (S3) | `123456` |
+| `ICE_SECRET_ACCESS_KEY` | Secret key for Iceberg (S3) | `123456` |
+| `AWS_ACCESS_KEY_ID` | Access key for Yandex Object Storage | `123` |
+| `AWS_SECRET_ACCESS_KEY` | Secret key for Yandex Object Storage | `123456` |
+| `TG_BOT_TOKEN` | Telegram bot token for alerts | `xxx` |
+| `TG_CHAT_ID` | Telegram chat ID for alerts | `xxxx` |
+| `SUPERSET_DB` | Superset metadata DB name | `superset_metadata_db` |
+| `SUPERSET_USER` | Superset admin login | `admin` |
+| `SUPERSET_PASSWORD` | Superset admin password | `admin` |
+| `SUPERSET_EMAIL` | Superset admin email | `admin@admin.org` |
+| `SUPERSET_SECRET_KEY` | Superset secret key | `123456123456` |
+
+> `TG_BOT_TOKEN` and `TG_CHAT_ID` are read by the DAG `dwh_core_elthub.py` to send Telegram alerts on pipeline failures.
+
+---
+
+### CI/CD Secrets (GitHub → Settings → Secrets and variables → Actions)
+
+The following secrets are used in the workflow files. They must be filled in the repository settings:
+
+| Secret | Environment | Purpose |
+|--------|-----------|------------|
+| `TEST_YC_AWS_ACCESS_KEY_ID` | test | Access key of the Yandex Cloud static key (S3 artifact upload) |
+| `TEST_YC_AWS_SECRET_ACCESS_KEY` | test | Secret key of the Yandex Cloud static key |
+| `TEST_SERVER_HOST` | test | test-VM IP/host |
+| `TEST_SERVER_USER` | test | SSH user of test-VM |
+| `TEST_SSH_PRIVATE_KEY` | test | SSH private key for deploying to test-VM |
+| `PROD_YC_AWS_ACCESS_KEY_ID` | prod | Access key of the Yandex Cloud static key (S3 artifact upload) |
+| `PROD_YC_AWS_SECRET_ACCESS_KEY` | prod | Secret key of the Yandex Cloud static key |
+| `PROD_SERVER_HOST` | prod | prod-VM IP/host |
+| `PROD_SERVER_USER` | prod | SSH user of prod-VM |
+| `PROD_SSH_PRIVATE_KEY` | prod | SSH private key for deploying to prod-VM |
+
+---
+
+## ⏰ Pipeline Orchestration in Apache Airflow
+
+Every day at **02:00** the DAG `dwh_core_elthub` runs:
 
 ```mermaid
 graph TD
@@ -274,87 +358,63 @@ graph TD
     T5 --> T6[6. bronze_to_silver]
     T6 --> T7[7. fetch_metrics_task]
     
-    %% Ветвление
+    %% Branching
     T7 --> T8[8. silver_to_gold]
     T7 --> T9[9. archive_raw]
     
     T8 --> T10[10. dbt_clickhouse]
     
-    %% Слияние
+    %% Merging
     T10 --> T11[11. join_computations]
     
-    %% Удаление кластера (триггер: all_done)
+    %% Cluster deletion (trigger: all_done)
     T3 --> T12[12. delete_cluster]
     T11 --> T12
 ```
 
-1. **fetch_config_from_s3** — загружает конфигурацию и схемы из S3.
-2. **wait_for_bronze_data** — ожидает появления сырых данных в бакете Bronze.
-3. **create_cluster** — создаёт кластер Yandex Data Proc для Spark-задач.
-4. **ice_schema_migration** — синхронизирует схемы Iceberg таблиц (создание/добавление/удаление колонок).
-5. **load_ref_data** — загружает справочники (departments, professions).
-6. **bronze_to_silver** — валидирует и очищает данные, заполняет Silver-слой.
-7. **fetch_metrics_task** — читает DQ-метрики из S3 и логирует их.
-8. **silver_to_gold** — инкрементально собирает Gold-слой.
-9. **archive_raw** — архивирует обработанные сырые файлы.
-10. **dbt_clickhouse** — запускает dbt для обновления витрин ClickHouse.
-11. **join_computations** — точка объединения веток пайплайна.
-12. **delete_cluster** — удаляет кластер после завершения.
+1. **fetch_config_from_s3** — loads configuration and schemas from S3.
+2. **wait_for_bronze_data** — waits for raw data to appear in the Bronze bucket.
+3. **create_cluster** — creates a Yandex Data Proc cluster for Spark jobs.
+4. **ice_schema_migration** — synchronizes Iceberg table schemas (create/add/remove columns).
+5. **load_ref_data** — loads reference data (departments, professions).
+6. **bronze_to_silver** — validates and cleans data, fills the Silver layer.
+7. **fetch_metrics_task** — reads DQ metrics from S3 and logs them.
+8. **silver_to_gold** — incrementally builds the Gold layer.
+9. **archive_raw** — archives processed raw files.
+10. **dbt_clickhouse** — runs dbt to update ClickHouse marts.
+11. **join_computations** — the point where pipeline branches merge.
+12. **delete_cluster** — deletes the cluster after completion.
 
-Ключевые особенности графа:
+Key graph features:
 
-* **Ветвление:** после `fetch_metrics_task` пайплайн разделяется на две параллельные ветки — `silver_to_gold` (сборка Gold-слоя) и `archive_raw` (архивация сырых файлов).
-* **Слияние:** `join_computations` объединяет ветку `silver_to_gold → dbt_clickhouse` с остальным пайплайном.
-* **Удаление кластера:** `delete_cluster` запускается только после завершения **обоих** предшественников — `create_cluster` и `join_computations` (правило `all_done`), что гарантирует корректное освобождение ресурсов Data Proc даже при сбое в одной из веток.
+* **Branching:** after `fetch_metrics_task` the pipeline splits into two parallel branches — `silver_to_gold` (building the Gold layer) and `archive_raw` (archiving raw files).
+* **Merging:** `join_computations` joins the `silver_to_gold → dbt_clickhouse` branch with the rest of the pipeline.
+* **Cluster deletion:** `delete_cluster` runs only after **both** predecessors complete — `create_cluster` and `join_computations` (the `all_done` rule), which guarantees correct release of Data Proc resources even if one of the branches fails.
 
-В случае любого необработанного исключения или падения из-за превышения порога брака данных (`CriticalDataQualityError`), дежурный инженер моментально получает нотификацию в Telegram.
-
----
-
-## 🧪 Качество данных (Data Quality)
-
-Проект включает встроенный механизм контроля качества данных:
-
-* **Правила валидации** (`config/dev_config.yaml` → `dq_rule`):
-  * `min_age` / `max_age` — допустимый диапазон возраста пациента.
-  * `min_temp` / `max_temp` — допустимый диапазон температуры тела.
-  * `percent_marriage` — критический порог процента брака (по умолчанию 5%).
-* **Метрики DQ** (`MetricsValidate`): `total_rows`, `valid_rows`, `invalid_rows`, `error_percent`.
-* **Карантин (DLQ):** невалидные записи направляются в изолированный S3-карантин.
-* **Критический порог:** при превышении `percent_marriage` джоб останавливается с ошибкой `CriticalDataQualityError`.
+In the event of any unhandled exception, or a failure due to exceeding the data rejection threshold (`CriticalDataQualityError`), the on-call engineer instantly receives a notification in Telegram.
 
 ---
 
-## 🗄 Слои данных (Medallion)
+## 🧪 Data Quality
 
-| Слой | Каталог | Описание |
+The project includes a built-in data quality control mechanism:
+
+* **Validation rules** (`config/dev_config.yaml` → `dq_rule`):
+  * `min_age` / `max_age` — the allowed age range of a patient.
+  * `min_temp` / `max_temp` — the allowed body temperature range.
+  * `percent_marriage` — the critical rejection percentage threshold (default 5%).
+* **DQ metrics** (`MetricsValidate`): `total_rows`, `valid_rows`, `invalid_rows`, `error_percent`.
+* **Quarantine (DLQ):** invalid records are routed to an isolated S3 quarantine.
+* **Critical threshold:** when `percent_marriage` is exceeded, the job stops with a `CriticalDataQualityError`.
+
+---
+
+## 🗄 Data Layers (Medallion)
+
+| Layer | Catalog | Description |
 |------|---------|----------|
-| **Bronze** | `iceberg.bronze` | Сырые данные визитов (`visits_raw`) |
-| **Silver** | `iceberg.silver` | Очищенные и валидированные данные (`visits`, `visits_symptoms`, `visits_chronic`, `departments`, `professions`) |
-| **Gold** | `iceberg.gold` | Агрегированные бизнес-метрики (`visits`) |
-| **ClickHouse** | — | Аналитические витрины (`mart_visits`) |
+| **Bronze** | `iceberg.bronze` | Raw visit data (`visits_raw`) |
+| **Silver** | `iceberg.silver` | Cleaned and validated data (`visits`, `visits_symptoms`, `visits_chronic`, `departments`, `professions`) |
+| **Gold** | `iceberg.gold` | Aggregated business metrics (`visits`) |
+| **ClickHouse** | — | Analytical marts (`mart_visits`) |
 
----
-
-## 🧰 Makefile команды
-
-| Команда | Описание |
-|---------|----------|
-| `make sync` | Создать виртуальное окружение и установить зависимости |
-| `make generate` | Сгенерировать тестовые данные в папку `data/` |
-| `make test` | Запустить локальные юнит-тесты через pytest |
-| `make lint` | Проверить форматирование кода линтером black |
-| `make build` | Собрать `.whl` пакет для деплоя на Yandex Data Proc |
-| `make refs-dev` | Обновление справочников и отправка статических файлов в облако |
-| `make silver-dev` | Запуск скриптов для подготовки слоя silver |
-| `make gold-dev` | Запуск скриптов для подготовки слоя gold |
-| `make docker-build` | Собрать Docker-образы |
-| `make docker-up` | Запустить Docker Compose стек |
-| `make docker-down` | Остановить Docker Compose стек |
-| `make docker-restart` | Перезапустить Docker Compose стек |
-| `make docker-ps` | Показать статус контейнеров |
-| `make docker-logs` | Показать логи Airflow |
-| `make dbt-run` | Запустить модели dbt |
-| `make dbt-test` | Запустить тесты dbt |
-| `make dbt-docs` | Сгенерировать и показать документацию dbt |
-| `make clean` | Удалить временные файлы, кэш и сборки |

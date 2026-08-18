@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 @monitor_job
 def run_ice_schema_migration(spark: SparkSession, layer: str):
-    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()["schemas"])
+    registry = DataCatalogRegistry.from_dict(get_config()["schema"])
     stats = StatsTableSync()
     create_database(spark, registry.get_catalog_schema(layer))
 
-    for table_key in registry.get_active_tables():
+    for table_key in registry.get_active_tables(layer):
         sync_single_table(spark, registry, layer, table_key, stats)
 
     logger.info("=" * 30)
@@ -30,9 +30,8 @@ def run_ice_schema_migration(spark: SparkSession, layer: str):
 
 
 if __name__ == "__main__":
-    config = get_config()["cfg"]
     setup_logging()
-    spark = get_spark_session(config)
+    spark = get_spark_session(get_config()["cfg"])
     try:
         run_ice_schema_migration(spark, "silver")
         run_ice_schema_migration(spark, "gold")
