@@ -3,10 +3,10 @@ s3:
   bronze: &bronze_bucket "spark-medanalytics-dev-bronze"
   silver: &silver_bucket "spark-medanalytics-dev-silver"
   gold: &gold_bucket "spark-medanalytics-dev-gold"
-  visits_json: 
+  visits_raw_json: 
     bucket: *bronze_bucket
     path: "visits/"
-  visits_archive:
+  visits_raw_archive:
     bucket: *bronze_bucket
     path: "archive/visits/"
   departments_csv: 
@@ -37,8 +37,8 @@ log_level:
   spark_sql: "WARN"
 
 infrastructure:
-  cluster_name: "sparkmedanalytics-cluster"
-  code_bucket: "scripts-spark-med"
+  cluster_name: "sparkmedanalytics-cluster-dev"
+  code_bucket: "scripts-spark-med-dev"
   dependencies: "dependencies.zip"
   schemas: "schemas.yaml"
   metrics_path: "metrics"

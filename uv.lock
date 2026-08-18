@@ -29,24 +29,6 @@ wheels = [
 ]
 
 [[package]]
-name = "certifi"
-version = "2026.7.22"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a3/c2/24167ea9858356b47a87a50d39908bfdb72ceeefe0041586e704e5376b3a/certifi-2026.7.22.tar.gz", hash = "sha256:741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55", size = 138112, upload-time = "2026-07-22T03:35:12.644Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl", hash = "sha256:62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775", size = 136983, upload-time = "2026-07-22T03:35:11.276Z" },
-]
-
-[[package]]
-name = "charset-normalizer"
-version = "3.4.9"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bd/2a/23f34ec9d04624958e137efdc394888716353190e75f25dd22c7a2c7a8aa/charset_normalizer-3.4.9.tar.gz", hash = "sha256:673611bbd43f0810bec0b0f028ddeaaa501190339cac411f347ac76917c3ae7b", size = 152439, upload-time = "2026-07-07T14:34:58.454Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/2b/f97f1c193fb855c345d678f5077d6926034db0722df74c8f057020e05a25/charset_normalizer-3.4.9-py3-none-any.whl", hash = "sha256:68e5f26a1ad57ded6d1cfb85331d1c1a195314756471d97758c48498bb4dcdf5", size = 64538, upload-time = "2026-07-07T14:34:56.993Z" },
-]
-
-[[package]]
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi.org/simple" }
@@ -95,15 +77,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/23/15/bd3e2b2a277ec078abf2544a5e3a87063ff1a55d66342ff5f32bab075b52/google_re2-1.1.20240702-1-cp38-cp38-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7388c5aadcc5489291d2804ecc384c2e3bb64832e1b46afd44d7bca6c948b615", size = 546521, upload-time = "2024-07-01T14:08:51.592Z" },
     { url = "https://files.pythonhosted.org/packages/d7/bf/a70784721bed0fe52ca6faf399fcd42d9926942416db86b59b6ad7ceb294/google_re2-1.1.20240702-1-cp38-cp38-win32.whl", hash = "sha256:cb20853af1104b5180eb2daea66a481723553aa66bf5a5c4c58420c7369364cb", size = 420474, upload-time = "2024-07-01T14:08:53.277Z" },
     { url = "https://files.pythonhosted.org/packages/7f/75/6f3826a02c943b335a962b41ba1d7dac5c0a1292dde5266cd668cb866f7a/google_re2-1.1.20240702-1-cp38-cp38-win_amd64.whl", hash = "sha256:a7f0d950ba9508ac1b2d89837f4a4c74092ae3af015a9797b80570ee87b7d7d5", size = 516461, upload-time = "2024-07-01T14:08:54.457Z" },
-]
-
-[[package]]
-name = "idna"
-version = "3.15"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/82/77/7b3966d0b9d1d31a36ddf1746926a11dface89a83409bf1483f0237aa758/idna-3.15.tar.gz", hash = "sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc", size = 199245, upload-time = "2026-05-12T22:45:57.011Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/23/408243171aa9aaba178d3e2559159c24c1171a641aa83b67bdd3394ead8e/idna-3.15-py3-none-any.whl", hash = "sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8", size = 72340, upload-time = "2026-05-12T22:45:55.733Z" },
 ]
 
 [[package]]
@@ -161,24 +134,6 @@ wheels = [
 ]
 
 [[package]]
-name = "py4j"
-version = "0.10.9.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/1f/b00295b6da3bd2f050912b9f71fdb436ae8f1601cf161365937d8553e24b/py4j-0.10.9.5.tar.gz", hash = "sha256:276a4a3c5a2154df1860ef3303a927460e02e97b047dc0a47c1c3fb8cce34db6", size = 761259, upload-time = "2022-03-18T01:06:29.681Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/ec/60880978512d5569ca4bf32b3b4d7776a528ecf4bca4523936c98c92a3c8/py4j-0.10.9.5-py2.py3-none-any.whl", hash = "sha256:52d171a6a2b031d8a5d1de6efe451cf4f5baff1a2819aabc3741c8406539ba04", size = 199724, upload-time = "2022-03-18T01:06:27.762Z" },
-]
-
-[[package]]
-name = "pyspark"
-version = "3.3.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "py4j" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/08/87b404b8b3255d46caf0ecdccf871d501a2b58da9b844d3f9710ce9d4d53/pyspark-3.3.2.tar.gz", hash = "sha256:0dfd5db4300c1f6cc9c16d8dbdfb82d881b4b172984da71344ede1a9d4893da8", size = 281376518, upload-time = "2023-02-15T22:42:59.294Z" }
-
-[[package]]
 name = "pytest"
 version = "7.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -220,21 +175,6 @@ wheels = [
 ]
 
 [[package]]
-name = "requests"
-version = "2.32.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "charset-normalizer" },
-    { name = "idna" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/0a/929373653770d8a0d7ea76c37de6e41f11eb07559b103b1c02cafb3f7cf8/requests-2.32.4.tar.gz", hash = "sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422", size = 135258, upload-time = "2025-06-09T16:43:07.34Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/e4/56027c4a6b4ae70ca9de302488c5ca95ad4a39e190093d6c1a8ace08341b/requests-2.32.4-py3-none-any.whl", hash = "sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c", size = 64847, upload-time = "2025-06-09T16:43:05.728Z" },
-]
-
-[[package]]
 name = "sparkmedanalytics"
 version = "0.1.0"
 source = { editable = "." }
@@ -245,13 +185,8 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
-airflow = [
-    { name = "pyyaml" },
-    { name = "requests" },
-]
 dev = [
     { name = "black" },
-    { name = "pyspark" },
     { name = "pytest" },
 ]
 
@@ -263,16 +198,8 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-airflow = [
-    { name = "apache-airflow-providers-amazon", marker = "python_full_version >= '3.10'", specifier = ">=9.0.0" },
-    { name = "apache-airflow-providers-docker", marker = "python_full_version >= '3.10'", specifier = ">=4.0.0" },
-    { name = "apache-airflow-providers-yandex", marker = "python_full_version >= '3.10'", specifier = ">=3.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.0" },
-    { name = "requests", specifier = ">=2.30.0" },
-]
 dev = [
     { name = "black", specifier = ">=24.0,<24.10.0" },
-    { name = "pyspark", specifier = "==3.3.2" },
     { name = "pytest", specifier = "==7.4.0" },
 ]
 
@@ -292,13 +219,4 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f6/37/23083fcd6e35492953e8d2aaaa68b860eb422b34627b13f2ce3eb6106061/typing_extensions-4.13.2.tar.gz", hash = "sha256:e6c81219bd689f51865d9e372991c540bda33a0379d5573cddb9a3a23f7caaef", size = 106967, upload-time = "2025-04-10T14:19:05.416Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/54/b1ae86c0973cc6f0210b53d508ca3641fb6d0c56823f288d108bc7ab3cc8/typing_extensions-4.13.2-py3-none-any.whl", hash = "sha256:a439e7c04b49fec3e5d3e2beaa21755cadbbdc391694e28ccdd36ca4a1408f8c", size = 45806, upload-time = "2025-04-10T14:19:03.967Z" },
-]
-
-[[package]]
-name = "urllib3"
-version = "2.2.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ed/63/22ba4ebfe7430b76388e7cd448d5478814d3032121827c12a2cc287e2260/urllib3-2.2.3.tar.gz", hash = "sha256:e7d814a81dad81e6caf2ec9fdedb284ecc9c73076b62654547cc64ccdcae26e9", size = 300677, upload-time = "2024-09-12T10:52:18.401Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/d9/5f4c13cecde62396b0d3fe530a50ccea91e7dfc1ccf0e09c228841bb5ba8/urllib3-2.2.3-py3-none-any.whl", hash = "sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac", size = 126338, upload-time = "2024-09-12T10:52:16.589Z" },
 ]

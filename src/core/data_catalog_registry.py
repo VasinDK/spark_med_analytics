@@ -6,14 +6,14 @@ from src.exceptions import ConfigurationError
 
 
 class DataCatalogRegistry:
-    def __init__(self, yaml_content: dict):
-        self._config = yaml_content
+    def __init__(self, schema: dict):
+        self._schema = schema
         self._env = os.getenv("SPARK_ENV", "dev").lower()
-        self._databases = self._config.get("databases", {})
+        self._databases = self._schema["databases"]
 
     @classmethod
-    def from_s3_yaml_file(cls, schemas: dict) -> "DataCatalogRegistry":
-        return cls(schemas)
+    def from_dict(cls, schema: dict) -> "DataCatalogRegistry":
+        return cls(schema)
 
     def _get_layer_meta(self, layer: str) -> Dict[str, Any]:
         if layer not in self._databases:

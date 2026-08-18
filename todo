@@ -1,9 +1,3 @@
-Оптимизация ClickHouse: Поля disease_code и blood_type используют тип LowCardinality(String), так как 
-справочник кодов МКБ-10 и групп крови ограничен. Это ускоряет фильтрацию при аналитических запросах.
-Преобразование ID: Перед отправкой данных в ClickHouse в Spark-джобе необходимо выполнить кастинг (cast()) 
-типов для полей id (в Long) и doctor_id (в Short/Integer), чтобы они корректно записались в UInt64 и 
-UInt16 на стороне ClickHouse.
-
 Шаг 6. Написание аналитических запросов (Проверка проекта)
 Пет-проект нужно протестировать и подготовить примеры для портфолио.
 Действие: Зайти в консоль ClickHouse и написать 3-4 сложных SQL-запроса (например, топ-3 болезней у 
@@ -11,35 +5,6 @@ UInt16 на стороне ClickHouse.
 Результат: Готовый GitHub-репозиторий с кодом, архитектурной схемой в README и примерами сверхбыстрых SQL-запросов.
 
 - Разные витрины 
-
-Airflow:
-- Подключения и среды dev prod для всех. Особенно для cicd проработать. Проработать всю логику переключение и работу в разных окружениях
-- понять как будет откатываться. Процесс весь
-- актуализирвать readme. + Добавить переменные окружения из CI/CD. + AIRFLOW которые надо заполнить
-- Язык перевести на английский readme. английский - основной, русский ссылку как перевод 
-
-Поставка:
-- ветки называем так: feature_123_functional_description
-- feature_123_functional_description -> dev (commit "feat(dbt): [#123] add daily sales aggregation". При PR прогоняем linter, test)
-- dev -> test (commit "release 2026_08_12 feat: 001, 002", 
-    накатываем на test_vm со своей тестовой базой iceberg. Билдим все, проганяем. 
-    Если ок оставляем все так же, если не ок, откатывает iceberg и на test_vm ветку).
-- dev/test -> prod (просто накатываем, запускаем и тестируем smoke-тест, на prod vm и прод iceberg)
-
-Заполняем:
-airflow_url в конфигах
-AIRFLOW_USER и AIRFLOW_PASS общий для дева и прода. Создаем в обоих airflow Web UI заполняем в cicd секретах
-Правельно создать отдельного пользователя для пайплайна. Для этого после запуска контейнера выполните команду в терминале вашей ВМ:
-docker exec -it airflow_orchestrator airflow users create \
-  --username github_ci \
-  --firstname GitHub \
-  --lastname Actions \
-  --role Admin \
-  --email ci@example.com \
-  --password ваш_надежный_пароль_для_ci
-
-dbt_worker_image_tag создаем в airflow Web UI
-SA_KEY в ключем. заполняем в cicd секретах. Ключ сервисного акаунта регистратора образов
 
 Дополнительно изучить:
 warehouse в бакетах что это 
@@ -57,29 +22,3 @@ Pandas, numpy и др. библиотеки для анализа
 - разные витрины данных
 - добавить в get_config_json если нет аргументов идти в s3
 - optimize_table 
-
-optimize_table = DataprocCreatePysparkJobOperator(
-        task_id='optimize_table',
-        yc_conn_id=configs['cfg']['airflow']['yc_conn_id'],
-        cluster_id=create_cluster.output,
-        name='{{ task.task_id }}',
-        main_python_file_uri="s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['scripts']['optimize_table'] }}",
-        py_files=[
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['whl_file'] }}",
-            "s3a://{{ configs['cfg']['infrastructure']['code_bucket'] }}/{{ configs['cfg']['infrastructure']['dependencies'] }}"
-        ],
-        properties={
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.type": "hadoop",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.warehouse": "s3a://{{ configs['cfg']['s3']['gold_warehouse']['bucket'] }}/{{ configs['cfg']['s3']['gold_warehouse']['path'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.endpoint": "{{ configs['cfg']['s3']['storage'] }}",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.s3.path-style-access": "true",
-            "spark.sql.catalog.{{ configs['schema']['databases']['gold']['catalog'] }}.aws.credentials.provider": "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider",
-            "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
-            "spark.sql.logLevel": "{{ configs['cfg']['log_level']['spark_sql'] }}"
-        },
-        packages=["{{ configs['cfg']['packages'] }}"],
-        repositories=["{{ configs['cfg']['repositories'] }}"],
-        args=["--config_json", "{{ configs | tojson }}"]
-    )
