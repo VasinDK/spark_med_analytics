@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 @monitor_job
 def run_etl_gold(spark: SparkSession):
-    registry = DataCatalogRegistry.from_dict(get_config()["schema"])
+    registry = DataCatalogRegistry.from_s3_yaml_file(get_config()["schemas"])
     gold_table_address = registry.get_table_address("gold", "visits")
     last_visit = get_last_date(spark.read.table(gold_table_address))
     watermark_date = last_visit if last_visit else "1970-01-01"
@@ -118,9 +118,10 @@ def run_etl_gold(spark: SparkSession):
 
 
 if __name__ == "__main__":
+    config = get_config()["cfg"]
     setup_logging()
-    spark = get_spark_session(get_config()["cfg"])
+    spark = get_spark_session(config)
     try:
-        run_etl_gold(spark)
+        run_etl_gold(spark, config)
     except Exception as e:
         handle_job_exception(spark, e)

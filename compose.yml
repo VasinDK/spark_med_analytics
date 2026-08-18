@@ -52,7 +52,6 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
       SPARK_ENV: ${SPARK_ENV}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
-      TG_CHAT_ID: ${TG_CHAT_ID}
 
   postgres-airflow:
     image: postgres:15-alpine
@@ -142,6 +141,17 @@ services:
         condition: service_healthy
       clickhouse:
         condition: service_started
+    restart: always
+
+  jupyter_spark:
+    image: jupyter/pyspark-notebook:spark-3.3.2
+    container_name: jupyter_spark_dev
+    profiles:
+      - dev
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
     restart: always
 
 volumes:
