@@ -14,7 +14,7 @@ Makefile
 
 !data/departments.csv
 !data/professions.csv
-todo.txt
+todo
 
 .venv
 .vscode
