@@ -1,8 +1,8 @@
 s3:
   storage: "https://storage.yandexcloud.net"
-  bronze: &bronze_bucket "spark-medanalytics-dev-bronze"
-  silver: &silver_bucket "spark-medanalytics-dev-silver"
-  gold: &gold_bucket "spark-medanalytics-dev-gold"
+  bronze: &bronze_bucket "spark-medanalytics-test-bronze"
+  silver: &silver_bucket "spark-medanalytics-test-silver"
+  gold: &gold_bucket "spark-medanalytics-test-gold"
   visits_raw_json: 
     bucket: *bronze_bucket
     path: "visits/"
@@ -37,8 +37,8 @@ log_level:
   spark_sql: "WARN"
 
 infrastructure:
-  cluster_name: "sparkmedanalytics-cluster-dev"
-  code_bucket: "scripts-spark-med-dev"
+  cluster_name: "sparkmedanalytics-cluster-test"
+  code_bucket: "scripts-spark-med-test"
   dependencies: "dependencies.zip"
   schemas: "schemas.yaml"
   metrics_path: "metrics"
