@@ -26,7 +26,7 @@ def generate_medical_dataset(output_filepath: str, num_records: int = 10):
         for i in range(num_records):
             record_id = 100000 + i
             age = random.randint(18, 90)
-            gender_id = random.choice([1, 2])
+            gender_id = random.choice([1, 2])  # 1 - М, 2 - Ж
             profession_id = random.randint(100, 150)
             doctor_id = random.randint(1, 200)
             department_id = random.randint(1, 10)

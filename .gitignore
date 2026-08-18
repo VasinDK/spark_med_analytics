@@ -11,6 +11,7 @@ src/sparkmedanalytics.egg-info
 requirements.txt
 requirements-cloud.txt
 Makefile
+Makefile_backup
 
 !data/departments.csv
 !data/professions.csv

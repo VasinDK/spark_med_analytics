@@ -1,14 +1,15 @@
-name: test push
+name: Production Deployment
 
 on:
   push:
-    branches: [ test ]
-    
+    branches: [ "main" ]
+
 jobs:
   build-and-upload:
+    needs: python-testing
     runs-on: ubuntu-24.04
     env:
-      SPARK_ENV: test
+      SPARK_ENV: DEV # ${{ github.ref_name == 'main' && 'PROD' || 'DEV' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,8 +42,8 @@ jobs:
       - name: Configure AWS Credentials (Yandex S3)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.TEST_YC_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.TEST_YC_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.YC_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.YC_AWS_SECRET_ACCESS_KEY }}
           aws-region: ru-central1
 
       - name: Build and upload dependencies.zip
@@ -69,7 +70,7 @@ jobs:
       - name: Upload artifacts to Yandex Storage (S3)
         run: |
           aws --endpoint-url=${{ env.STORAGE }} s3 cp dist/ s3://${{ env.CODE_BUCKET }}/ --recursive --exclude "*/*" --include "*.whl"
-          aws --endpoint-url=${{ env.STORAGE }} s3 cp jobs/ s3://${{ env.CODE_BUCKET }}/jobs/ --recursive
+          aws --endpoint-url=${{ env.STORAGE }} s3 cp jobs/* s3://${{ env.CODE_BUCKET }}/
           aws --endpoint-url=${{ env.STORAGE }} s3 cp config/${{ env.ENV_LOWER }}_config.yaml s3://${{ env.CODE_BUCKET }}/
           aws --endpoint-url=${{ env.STORAGE }} s3 cp config/schemas.yaml s3://${{ env.CODE_BUCKET }}/schemas.yaml
           aws --endpoint-url=${{ env.STORAGE }} s3 cp data/departments.csv s3://${{ env.DEPARTMENTS_BUCKET }}/departments.csv
@@ -82,29 +83,23 @@ jobs:
       - name: Deploy and Build Image via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.TEST_SERVER_HOST }}
-          username: ${{ secrets.TEST_SERVER_USER }}
-          key: ${{ secrets.TEST_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            if [ ! -d "/home/${{ secrets.TEST_SERVER_USER }}/sparkmedanalytics" ]; then
-              mkdir -p /home/${{ secrets.TEST_SERVER_USER }}/sparkmedanalytics
-              cd /home/${{ secrets.TEST_SERVER_USER }}/sparkmedanalytics
-              git clone -b test https://github.com/${{ github.repository }}.git .
-            else
-              cd /home/${{ secrets.TEST_SERVER_USER }}/sparkmedanalytics
-            fi
+            cd /home/${{ secrets.SERVER_USER }}/sparkmedanalytics
             
-            git fetch origin test
-            DIFF=$(git diff --name-only HEAD origin/test 2>/dev/null || true)
+            git fetch origin ${{ github.ref_name }}
+            DIFF=$(git diff --name-only HEAD origin/${{ github.ref_name }})
 
-            git pull origin test
+            git pull origin ${{ github.ref_name }}
             
-            if [ -z "$DIFF" ] || echo "$DIFF" | grep -E "requirements-airflow.txt|dockerfile.airflow|compose\.y.*ml|config/"; then
+            if echo "$DIFF" | grep -E "requirements-airflow.txt|dockerfile.airflow|compose\.y.*ml|config/"; then
                 echo "Detected infra or config changes. Rebuilding Compose..."
                 docker compose up -d --build
             fi
 
-            if [ -z "$DIFF" ] || echo "$DIFF" | grep -E "dbt_project/|dockerfile.dbt"; then
+            if echo "$DIFF" | grep -E "dbt_project/|dockerfile.dbt"; then
                 echo "Detected changes in dbt_project. Rebuilding dbt-worker image..."
                 docker build -t dbt-worker:latest -f dockerfile.dbt .
                 docker image prune -f

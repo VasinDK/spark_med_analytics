@@ -87,7 +87,7 @@ class TestDataCatalogRegistry:
             }
         }
 
-        registry = DataCatalogRegistry.from_dict(schemas)
+        registry = DataCatalogRegistry.from_s3_yaml_file(schemas)
         assert registry is not None
         catalog, schema = registry.get_catalog_schema("test")
         assert catalog == "test_catalog"
